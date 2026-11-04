@@ -36,11 +36,17 @@ docker logs swag 2>&1 | grep emerg                                              
 
 From a browser:
 - `https://hofchilbi.<domain>/` → placeholder page "Hofchilbi Wil – Neue Website im Aufbau", no login.
-- `https://chilbiredaktion.<domain>/` → tinyauth login, then "Hofchilbi Redaktion".
+- `https://chilbiredaktion.<domain>/` → tinyauth login, then the Redaktion (menu: Event & Allgemein,
+  News, Sponsoren & Gönner, Anzapfer, Team, Galerien, Geschichte, Verlauf).
 
 If something fails: send the operator the failing command, its output and
 `journalctl -u hofchilbi-image -u docker-hofchilbi -u docker-hofchilbi-redaktion -n 80`.
 Do not change code, delete appdata or edit nginx confs by hand.
+
+Redaktion health (after content is installed):
+- `docker logs hofchilbi-redaktion --tail 20` → `editor: listening on :4330`, no errors.
+- `git -C <appdata>/hofchilbi/content log --oneline | head -3` → at least «Stand beim Start der Redaktion».
+  This git is the only version history of the content. Never delete `content/.git`.
 
 ## 3. Code updates
 

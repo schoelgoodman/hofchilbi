@@ -11,8 +11,15 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src"],
-  "exclude": ["src/**/*.test.ts"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/editor"
+  ]
 }

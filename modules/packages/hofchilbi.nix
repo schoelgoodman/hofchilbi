@@ -20,11 +20,13 @@
           ../../package.json
           ../../package-lock.json
           ../../tsconfig.json
+          ../../tsconfig.editor.json
+          ../../vite.config.ts
           ../../src
         ];
       };
       # After every change to package-lock.json: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-      npmDepsHash = "sha256-nnzHPaZ+xLmZ2DTiuOfDfVYMTpE8ZBchatLxwEP5+3s=";
+      npmDepsHash = "sha256-pcBniFjVSqAzCQr3cQXHnZhM6yc4FC6XZmFmEODlFrs=";
       npmBuildScript = "build";
       installPhase = ''
         runHook preInstall

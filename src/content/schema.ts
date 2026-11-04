@@ -1,6 +1,26 @@
 import { z } from "zod";
 
 /**
+ * Messages editors see next to a field. Plain German for the common cases, zod's German locale
+ * for the rest.
+ */
+z.config(z.locales.de());
+const deLocale = z.config().localeError;
+z.config({
+  customError: (iss) => {
+    if (iss.code === "invalid_type" && iss.input === undefined) return "Bitte ausfüllen.";
+    if (iss.code === "too_small" && iss.origin === "string" && iss.minimum === 1) return "Bitte ausfüllen.";
+    if (iss.code === "too_small" && iss.origin === "array") return "Mindestens ein Eintrag nötig.";
+    if (iss.code === "too_big" && iss.origin === "string") return `Höchstens ${iss.maximum} Zeichen.`;
+    if (iss.code === "invalid_format" && iss.format === "email") return "Keine gültige E-Mail-Adresse.";
+    if (iss.code === "invalid_format" && iss.format === "date") return "Kein gültiges Datum.";
+    if (iss.code === "invalid_format" && iss.format === "url") return "Keine gültige Webadresse (https://…).";
+    if (iss.code === "invalid_union") return "Bitte eine Webadresse (https://…) oder eine hochgeladene Datei angeben.";
+    return deLocale?.(iss);
+  },
+});
+
+/**
  * The content model. Everything an editor can change lives in CONTENT_DIR:
  *
  *   site.yaml        event dates, hero, links, contact, SEO defaults

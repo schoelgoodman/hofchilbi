@@ -25,12 +25,9 @@
           }
         ];
 
-        # The key reaches the container via a file, not the unit (Nix store).
-        # The site container gets it too: it authenticates the editor's rebuild call.
+        # The key reaches the container via a file, not the unit (Nix store). Only the editor
+        # needs it; the site notices saves via content/.version and needs no secret.
         neo.core.secrets.containerEnv.hofchilbi-redaktion = mkIf (cfg.accessKey != "") {
-          HOFCHILBI_KEY = cfg.accessKey;
-        };
-        neo.core.secrets.containerEnv.hofchilbi = mkIf (cfg.accessKey != "") {
           HOFCHILBI_KEY = cfg.accessKey;
         };
 
@@ -54,9 +51,8 @@
             CONTENT_DIR = "/content";
             SITE_DIR = "/site";
             SITE_URL = site.siteUrl;
+            # «Website ansehen» in the editor.
             PUBLIC_URL = optionalString (domain != null) "https://${site.subdomain}.${domain}";
-            # The editor asks the site container to rebuild after a publish.
-            SITE_INTERNAL_URL = "http://hofchilbi:4330";
             PORT = "4330";
           };
           user = "${toString config.neo.core.uid}:${toString config.neo.core.gid}";

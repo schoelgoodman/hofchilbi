@@ -6,6 +6,7 @@ import { contentDir, currentSiteDir, repoRoot } from "../paths.ts";
 import { buildSite, siteUrl } from "../render/build.ts";
 import { isForeignWrite, keyMatches } from "./access.ts";
 import { serveStatic } from "./static.ts";
+import { EditorApi } from "../editor-server/api.ts";
 
 /**
  * One image, two roles (see modules/services/*):
@@ -22,10 +23,21 @@ const PRODUCTION = process.env.NODE_ENV === "production";
 /** Shared secret nginx sends after TinyAuth. Delivered via a secrets file on Neo, never the Nix store. */
 const KEY = process.env.HOFCHILBI_KEY ?? "";
 
-function baseHeaders(res: http.ServerResponse): void {
-  // Neo strips CSP/X-Frame-Options from containers; nginx sets the real CSP. These help locally.
+/**
+ * Same policies as the swag.nix files in modules/services. On Neo nginx strips the app's CSP and sets its
+ * own; these apply when the app runs anywhere else (local dev, tests) so CSP problems show early.
+ * Dev mode relaxes the editor's script-src for Vite's hot reload client.
+ */
+const SITE_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://www.google.com https://www.openstreetmap.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+const EDITOR_CSP =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+
+function baseHeaders(res: http.ServerResponse, role: Role): void {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  if (role === "site") res.setHeader("Content-Security-Policy", SITE_CSP);
+  else if (PRODUCTION) res.setHeader("Content-Security-Policy", EDITOR_CSP);
 }
 
 /** Host as the visitor sent it (nginx forwards the original Host). */
@@ -72,6 +84,9 @@ async function handleSite(req: http.IncomingMessage, res: http.ServerResponse): 
   }
 }
 
+let editorApi: EditorApi | undefined;
+let editorUi: ((req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>) | undefined;
+
 async function handleEditor(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const p = pathname(req);
   if (p === "/health") return send(res, 200, "ok");
@@ -82,21 +97,40 @@ async function handleEditor(req: http.IncomingMessage, res: http.ServerResponse)
   }
   if (isForeignWrite(req)) return send(res, 403, "Forbidden");
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
-  if (p.startsWith("/api/")) return send(res, 404, '{"error":"not found"}', "application/json");
-  // Phase 3: the real editor bundle.
-  send(
-    res,
-    200,
-    `<!doctype html><html lang="de-CH"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Hofchilbi Redaktion</title></head><body><h1>Hofchilbi Redaktion</h1><p>Der Editor kommt in Phase 3. Die Anmeldung funktioniert.</p></body></html>`,
-    "text/html; charset=utf-8",
-  );
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  if (await editorApi!.handle(req, res)) return;
+  await editorUi!(req, res);
+}
+
+/** Production: the Vite build in dist/editor. Dev: Vite middleware with hot reload. */
+async function setupEditorUi(): Promise<void> {
+  if (PRODUCTION) {
+    const root = path.join(repoRoot, "dist/editor");
+    editorUi = async (req, res) => {
+      if (await serveStatic(req, res, root)) return;
+      // Single page app: unknown paths get the app shell.
+      req.url = "/index.html";
+      if (!(await serveStatic(req, res, root))) send(res, 404, "Not Found");
+    };
+    return;
+  }
+  const { createServer } = await import("vite");
+  const vite = await createServer({ configFile: path.join(repoRoot, "vite.config.ts"), server: { middlewareMode: true }, appType: "spa" });
+  editorUi = (req, res) =>
+    new Promise((resolve) => {
+      vite.middlewares(req, res, () => {
+        send(res, 404, "Not Found");
+        resolve();
+      });
+      res.on("finish", () => resolve());
+    });
 }
 
 function serve(role: Role, port: number): void {
   const handler = role === "site" ? handleSite : handleEditor;
   http
     .createServer((req, res) => {
-      baseHeaders(res);
+      baseHeaders(res, role);
       handler(req, res).catch((err) => {
         console.error(`${role}: ${req.method} ${req.url}:`, err);
         if (!res.headersSent) send(res, 500, "Internal Server Error");
@@ -109,7 +143,31 @@ function serve(role: Role, port: number): void {
 if (ROLE !== "editor") {
   await buildSite();
   serve("site", PORT);
+  watchVersion();
   if (!PRODUCTION) watchForDev();
+}
+
+/**
+ * The editor touches content/.version after every save. Polling one file is cheap and works on
+ * Neo bind mounts, where inotify events are unreliable. No network call, no shared secret.
+ */
+function watchVersion(): void {
+  const file = path.join(contentDir(), ".version");
+  let last = "";
+  const check = async () => {
+    try {
+      const v = await readFile(file, "utf8");
+      if (last && v !== last) {
+        console.log("Site: content changed in the Redaktion, rebuilding");
+        await buildSite();
+      }
+      last = v;
+    } catch {
+      last = last || "none";
+    }
+  };
+  check();
+  setInterval(() => check().catch((err) => console.error("Site: rebuild failed:", err)), 2000).unref();
 }
 
 /** Local dev only: rebuild when content or design files change. */
@@ -124,10 +182,15 @@ function watchForDev(): void {
   };
   for (const dir of [contentDir(), path.join(repoRoot, "src/design")]) {
     try {
-      watch(dir, { recursive: true }, (_e, file) => file && !String(file).startsWith(".git") && rebuild(String(file)));
+      watch(dir, { recursive: true }, (_e, file) => file && !/(^|\/)\./.test(String(file)) && rebuild(String(file)));
     } catch {
       // Directory missing (no content yet): nothing to watch.
     }
   }
 }
-if (ROLE !== "site") serve("editor", ROLE === "editor" ? PORT : EDITOR_PORT);
+if (ROLE !== "site") {
+  editorApi = new EditorApi(contentDir(), process.env.PUBLIC_URL || (PRODUCTION ? siteUrl() : `http://localhost:${PORT}`));
+  await editorApi.init();
+  await setupEditorUi();
+  serve("editor", ROLE === "editor" ? PORT : EDITOR_PORT);
+}
