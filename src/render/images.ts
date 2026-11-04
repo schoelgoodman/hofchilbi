@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { copyFile, link, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { ContentError } from "../content/load.ts";
 import { html, type Raw } from "./html.ts";
 
 sharp.cache(false);
@@ -75,6 +76,9 @@ export class Images {
     if (!m) {
       m = sharp(this.src(rel))
         .metadata()
+        .catch(() => {
+          throw new ContentError(`${rel}: Datei fehlt oder ist kein lesbares Bild.`);
+        })
         .then((md) => {
           const rotated = (md.orientation ?? 1) >= 5;
           const w = md.width ?? 0;

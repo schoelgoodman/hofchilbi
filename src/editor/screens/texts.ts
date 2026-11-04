@@ -1,5 +1,5 @@
 import { api, thumb, type NewsEntry } from "../api.ts";
-import { confirmDialog, h, toast } from "../dom.ts";
+import { confirmDialog, h, toast, announceSaved } from "../dom.ts";
 import { Form, checkbox, handleSaveError, image, saveBar, text } from "../form.ts";
 import type { MarkdownEditor } from "../markdown.ts";
 import type { Ctx } from "./doc.ts";
@@ -144,6 +144,7 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
         const m = meta as NewsEntry["meta"];
         Object.assign(n, { meta: structuredClone(m), body, version: base });
         toast(m.draft ? "Gespeichert (Entwurf, auf der Website nicht sichtbar)." : "Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
+        announceSaved();
       },
       [del],
     ),
@@ -177,6 +178,7 @@ export function pageScreen(ctx: Ctx, name: string, title: string, intro: string)
         base = r.version;
         ctx.state.pages[name] = { meta: structuredClone(meta) as never, body, version: base };
         toast("Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
+      announceSaved();
       },
     ),
   );
@@ -206,6 +208,7 @@ export function historyScreen(ctx: Ctx): HTMLElement {
                       try {
                         await api.restore(e.hash);
                         toast("Wiederhergestellt. Die Website ist in wenigen Sekunden aktualisiert.");
+                        announceSaved();
                         await ctx.reload();
                       } catch (err) {
                         handleSaveError(err);

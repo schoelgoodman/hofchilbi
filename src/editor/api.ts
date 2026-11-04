@@ -60,6 +60,7 @@ export interface State {
   news: NewsEntry[];
   pages: Record<string, PageEntry>;
   publicUrl: string;
+  build: { ok: boolean; at?: string; error?: string } | null;
 }
 
 export const api = {

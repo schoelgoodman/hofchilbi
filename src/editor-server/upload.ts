@@ -74,10 +74,10 @@ export async function processUpload(contentDir: string, dirRaw: string | null, f
     img =
       kind === "svg"
         ? sharp(buf, { density: 300, limitInputPixels: 50e6 }).resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: false })
-        : sharp(buf, { failOn: "error", limitInputPixels: 100e6, animated: false })
+        : sharp(buf, { failOn: "error", limitInputPixels: 50e6, animated: false })
             .rotate()
             .resize({ width: MAX_EDGE, height: MAX_EDGE, fit: "inside", withoutEnlargement: true });
-    const meta = await sharp(buf, { limitInputPixels: 100e6 }).metadata();
+    const meta = await sharp(buf, { limitInputPixels: 50e6 }).metadata();
     const alpha = kind === "svg" || kind === "png" || ((kind === "webp" || kind === "avif" || kind === "gif") && meta.hasAlpha);
     const out = alpha
       ? await img.png({ compressionLevel: 9, palette: false }).toBuffer({ resolveWithObject: true })

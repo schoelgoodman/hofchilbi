@@ -74,6 +74,7 @@ export class History {
   restore(hash: string): Promise<string> {
     if (!/^[0-9a-f]{7,40}$/.test(hash)) return Promise.reject(new Error("bad hash"));
     return this.serial(async () => {
+      await this.git(["cat-file", "-e", `${hash}^{commit}`]);
       const date = (await this.git(["show", "-s", "--format=%cI", hash])).trim();
       await this.git(["restore", "--source", hash, "--staged", "--worktree", "--", "."]);
       await this.git(["add", "-A"]);

@@ -1,4 +1,4 @@
-import { stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ContentError, loadContent } from "../content/load.ts";
 import { writeAssets } from "../design/assets.ts";
@@ -37,7 +37,15 @@ export function buildSite(): Promise<void> {
     try {
       do {
         again = false;
-        await buildOnce();
+        try {
+          await buildOnce();
+          await writeStatus({ ok: true });
+        } catch (err) {
+          // The previous build stays online. The editor shows this message (api /state).
+          const message = err instanceof ContentError ? err.message : `${(err as Error).message ?? err}`;
+          console.error(`Site: build failed, the previous version stays online.\n${message}`);
+          await writeStatus({ ok: false, error: message.slice(0, 2000) });
+        }
       } while (again);
     } finally {
       running = null;
@@ -58,16 +66,7 @@ async function buildOnce(): Promise<void> {
     console.log(`Site: no content in ${cDir} yet, placeholder published`);
     return;
   }
-  let content;
-  try {
-    content = await loadContent(cDir);
-  } catch (err) {
-    if (err instanceof ContentError) {
-      console.error(`Site: content invalid, keeping the current site.\n${err.message}`);
-      return;
-    }
-    throw err;
-  }
+  const content = await loadContent(cDir);
 
   let images!: Images;
   await publishBuild(root, async (dir) => {
@@ -93,6 +92,32 @@ async function buildOnce(): Promise<void> {
   });
   await images.pruneCache();
   console.log(`Site: built in ${Date.now() - started} ms`);
+}
+
+export interface BuildStatus {
+  ok: boolean;
+  at?: string;
+  error?: string;
+}
+
+/** site/status.json: result of the last build, read by the editor (site/ is mounted read-only there). */
+async function writeStatus(st: BuildStatus): Promise<void> {
+  try {
+    await mkdir(siteDir(), { recursive: true });
+    const file = path.join(siteDir(), "status.json");
+    await writeFile(`${file}.tmp`, JSON.stringify({ ...st, at: new Date().toISOString() }));
+    await rename(`${file}.tmp`, file);
+  } catch (err) {
+    console.error("Site: could not write status.json:", err);
+  }
+}
+
+export async function readStatus(): Promise<BuildStatus | null> {
+  try {
+    return JSON.parse(await readFile(path.join(siteDir(), "status.json"), "utf8")) as BuildStatus;
+  } catch {
+    return null;
+  }
 }
 
 function sitemap(base: string, paths: string[]): string {

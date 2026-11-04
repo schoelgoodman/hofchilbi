@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { MediaPath } from "../content/schema.ts";
+import { readStatus } from "../render/build.ts";
 import { serveStatic } from "../server/static.ts";
 import { History } from "./git.ts";
 import { DOCS, HttpError, PAGES, Store, type DocName } from "./store.ts";
@@ -69,6 +70,13 @@ export class EditorApi {
     await this.history.init();
   }
 
+  private uploads: Promise<unknown> = Promise.resolve();
+  private oneAtATime<T>(fn: () => Promise<T>): Promise<T> {
+    const next = this.uploads.then(fn, fn);
+    this.uploads = next.catch(() => undefined);
+    return next;
+  }
+
   /** Commit + tell the site to rebuild. */
   private async saved(message: string): Promise<void> {
     await this.history.commit(message);
@@ -129,9 +137,15 @@ export class EditorApi {
       }
 
       if (p === "/api/upload" && m === "POST") {
-        const name = decodeURIComponent(String(req.headers["x-filename"] ?? "datei"));
+        let name = "datei";
+        try {
+          name = decodeURIComponent(String(req.headers["x-filename"] ?? "datei"));
+        } catch {
+          // Malformed name: the file is still fine, it just gets a generic name.
+        }
         const buf = await readBody(req, MAX_UPLOAD);
-        const up = await processUpload(this.store.dir, url.searchParams.get("dir"), name, buf);
+        // One upload at a time: each decode can take a few hundred MB (container limit 1 GB).
+        const up = await this.oneAtATime(() => processUpload(this.store.dir, url.searchParams.get("dir"), name, buf));
         await this.history.commit(`Datei hochgeladen: ${up.path}`);
         return json(res, 201, up);
       }
@@ -144,7 +158,9 @@ export class EditorApi {
       if (p === "/api/history" && m === "GET") return json(res, 200, await this.history.log());
       if (p === "/api/restore" && m === "POST") {
         const body = await readJson(req);
-        const date = await this.history.restore(String(body.hash ?? ""));
+        const date = await this.history.restore(String(body.hash ?? "")).catch(() => {
+          throw new HttpError(400, "Diesen Stand gibt es nicht.");
+        });
         await this.store.touch();
         return json(res, 200, { date });
       }
@@ -164,13 +180,15 @@ export class EditorApi {
     for (const name of Object.keys(DOCS) as DocName[]) docs[name] = await this.store.getDoc(name);
     const pages: Record<string, unknown> = {};
     for (const name of PAGES) pages[name] = await this.store.getPage(name);
-    return { docs, news: await this.store.listNews(), pages, publicUrl: this.publicUrl };
+    return { docs, news: await this.store.listNews(), pages, publicUrl: this.publicUrl, build: await readStatus() };
   }
 
   /** Small WebP preview of an uploaded image (originals can be several MB). */
   private async thumb(url: URL, res: http.ServerResponse): Promise<void> {
     const src = url.searchParams.get("src") ?? "";
-    const w = Math.min(800, Math.max(40, Number(url.searchParams.get("w")) || 320));
+    // Fixed sizes only, so the cache in /tmp stays small.
+    const asked = Number(url.searchParams.get("w")) || 320;
+    const w = [160, 320, 800].find((x) => x >= asked) ?? 800;
     if (!MediaPath.safeParse(src).success) throw new HttpError(400, "Ungültiger Pfad");
     const file = path.join(this.store.dir, src);
     let s;

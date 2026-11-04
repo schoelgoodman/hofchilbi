@@ -1,5 +1,5 @@
 import { api, type State } from "../api.ts";
-import { h, toast } from "../dom.ts";
+import { h, toast, announceSaved } from "../dom.ts";
 import { Form, handleSaveError, saveBar } from "../form.ts";
 
 export interface Ctx {
@@ -29,6 +29,7 @@ export function docScreen(ctx: Ctx, name: DocName, title: string, intro: string,
       form.markSaved();
       render();
       toast("Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
+      announceSaved();
     } catch (err) {
       bar.setDirty(true);
       handleSaveError(err, form);

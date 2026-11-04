@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
 import type { z } from "zod";
@@ -99,9 +99,35 @@ export class Store {
     return { data: text === null ? null : YAML.parse(text), version: version(text) };
   }
 
+  /**
+   * Every media/ reference must exist, and fields that show an image must point to an image
+   * (not e.g. the Gönner PDF). Otherwise the site build would fail after a "successful" save.
+   */
+  async checkRefs(data: unknown, prefix = ""): Promise<void> {
+    const errors: Record<string, string> = {};
+    const walk = async (v: unknown, p: string): Promise<void> => {
+      if (typeof v === "string" && v.startsWith("media/")) {
+        try {
+          if (!(await stat(path.join(this.dir, v))).isFile()) throw new Error();
+        } catch {
+          errors[p] = "Diese Datei gibt es nicht (mehr). Bitte neu hochladen.";
+          return;
+        }
+        if (!isLinkField(p) && !IMAGE_EXT.test(v)) errors[p] = "Hier braucht es ein Bild (JPG, PNG, WebP oder SVG).";
+      } else if (Array.isArray(v)) {
+        for (const [i, x] of v.entries()) await walk(x, p ? `${p}.${i}` : String(i));
+      } else if (v && typeof v === "object") {
+        for (const [k, x] of Object.entries(v)) await walk(x, p ? `${p}.${k}` : k);
+      }
+    };
+    await walk(data, prefix);
+    if (Object.keys(errors).length) throw new HttpError(422, "Bitte die markierten Felder prüfen.", errors);
+  }
+
   async putDoc(name: DocName, data: unknown, base: unknown): Promise<string> {
     const { file, schema } = DOCS[name];
     const clean = validate(schema, data);
+    await this.checkRefs(clean);
     await this.checkBase(file, base);
     const text = YAML.stringify(clean, { lineWidth: 0 });
     await atomicWrite(path.join(this.dir, file), text);
@@ -133,6 +159,7 @@ export class Store {
   async putNews(slug: string, meta: unknown, body: unknown, base: unknown): Promise<string> {
     const rel = this.newsRel(slug);
     const clean = validate(NewsFrontmatter, meta);
+    await this.checkRefs(clean, "meta");
     if (typeof body !== "string" || body.length > 50_000) throw new HttpError(422, "Text fehlt oder ist zu lang.");
     await this.checkBase(rel, base);
     const text = stringifyFrontmatter(clean, body);
@@ -180,6 +207,13 @@ export class Store {
     await atomicWrite(path.join(this.dir, rel), text);
     return version(text);
   }
+}
+
+const IMAGE_EXT = /\.(jpe?g|png|webp|avif|gif|svg)$/i;
+
+/** Fields that are links (may point to a PDF) rather than images. */
+function isLinkField(p: string): boolean {
+  return /(^|\.)(links|contact|social)\.[a-z]+$/.test(p) || /(^|\.)url$/.test(p);
 }
 
 export function slugify(s: string): string {

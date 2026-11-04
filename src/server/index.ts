@@ -2,8 +2,9 @@ import { watch } from "node:fs";
 import { readFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
-import { contentDir, currentSiteDir, repoRoot } from "../paths.ts";
+import { contentDir, currentSiteDir, repoRoot, siteDir } from "../paths.ts";
 import { buildSite, siteUrl } from "../render/build.ts";
+import { liveBuild } from "../render/publish.ts";
 import { isForeignWrite, keyMatches } from "./access.ts";
 import { serveStatic } from "./static.ts";
 import { EditorApi } from "../editor-server/api.ts";
@@ -72,7 +73,8 @@ async function handleSite(req: http.IncomingMessage, res: http.ServerResponse): 
   }
   // Trailing slash → canonical URL without it.
   if (p.length > 1 && p.endsWith("/")) {
-    res.writeHead(301, { Location: p.replace(/\/+$/, "") || "/" });
+    // Collapse leading slashes too: "//evil.com/" must never become "Location: //evil.com".
+    res.writeHead(301, { Location: "/" + p.replace(/^[/\\]+|\/+$/g, "") });
     return void res.end();
   }
   if (await serveStatic(req, res, currentSiteDir())) return;
@@ -137,11 +139,15 @@ function serve(role: Role, port: number): void {
         else res.destroy();
       });
     })
-    .listen(port, () => console.log(`${role}: listening on :${port}`));
+    // Outside production (local dev, editor open without key) only reachable from this machine.
+    .listen(port, PRODUCTION ? undefined : "127.0.0.1", () => console.log(`${role}: listening on :${port}`));
 }
 
 if (ROLE !== "editor") {
-  await buildSite();
+  // With a previous build on disk (every restart after the first), serve it right away and
+  // rebuild in the background: no downtime. Only a brand-new install waits for the first build.
+  const initial = buildSite().catch((err) => console.error("Site: initial build failed, serving the previous build:", err));
+  if (!(await liveBuild(siteDir()))) await initial;
   serve("site", PORT);
   watchVersion();
   if (!PRODUCTION) watchForDev();
@@ -155,15 +161,20 @@ function watchVersion(): void {
   const file = path.join(contentDir(), ".version");
   let last = "";
   const check = async () => {
+    let v: string;
     try {
-      const v = await readFile(file, "utf8");
-      if (last && v !== last) {
-        console.log("Site: content changed in the Redaktion, rebuilding");
-        await buildSite();
-      }
-      last = v;
+      v = await readFile(file, "utf8");
     } catch {
       last = last || "none";
+      return;
+    }
+    if (v === last) return;
+    const first = last === "";
+    // Remember before building: a failing build is reported once, not retried every 2 s.
+    last = v;
+    if (!first) {
+      console.log("Site: content changed in the Redaktion, rebuilding");
+      await buildSite();
     }
   };
   check();

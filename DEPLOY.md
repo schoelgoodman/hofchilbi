@@ -48,6 +48,10 @@ Redaktion health (after content is installed):
 - `git -C <appdata>/hofchilbi/content log --oneline | head -3` → at least «Stand beim Start der Redaktion».
   This git is the only version history of the content. Never delete `content/.git`.
 
+Security headers (both should show a Content-Security-Policy; the .svg one must contain `sandbox`):
+- `curl -sI https://hofchilbi.<domain>/ | grep -i content-security`
+- `curl -sI https://hofchilbi.<domain>/_assets/ … ` → use any SVG URL from the page source, e.g. the skyline.
+
 ## 3. Code updates
 
 Neo → **Update** (or update only the plugin input) → **Activate**. Nothing else.

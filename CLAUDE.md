@@ -21,6 +21,18 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
 - Site builds go to `site/build-*`, then `site/current` is swapped atomically (`src/render/publish.ts`).
 - Editor writes require header `X-Hofchilbi-Editor: 1` and a matching Origin (`src/server/access.ts`).
 
+## Security model (Phase 4)
+- Editor: TinyAuth → nginx adds `X-Hofchilbi-Key` → app checks it (timing-safe). Writes need
+  `X-Hofchilbi-Editor: 1` + same-origin. Saves are validated (zod, German messages) and every
+  `media/` reference must exist; image fields must be images.
+- Uploads: type sniffed from bytes, re-encoded by sharp (metadata stripped, ≤50 MP), SVG → PNG,
+  PDF only for documents, one at a time, 25 MB max.
+- Site: content mounted read-only; build failures keep the previous build online and are shown
+  in the editor (site/status.json). Restarts serve the previous build immediately.
+- Containers: read-only root, tmpfs /tmp, cap-drop ALL, no-new-privileges, 1 GB, 256 pids.
+- Known/accepted: PDFs are published as uploaded (trusted uploaders); KaTeX low-severity advisory
+  in Milkdown (math disabled, editor only).
+
 ## Verify
 `npm run typecheck && npm test`. Nix: `nix flake show --all-systems`; full Neo evaluation with a
 scratch host flake importing neo + this repo as `plugin0` (see git history of phase 1).

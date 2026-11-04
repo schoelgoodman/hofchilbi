@@ -54,9 +54,43 @@ async function render(): Promise<void> {
   );
   await disposeEditor();
   isDirty = () => false;
-  main.replaceChildren(r.render(ctx, arg));
+  main.replaceChildren(buildWarning(), r.render(ctx, arg));
   document.title = `${r.label} · Hofchilbi Redaktion`;
 }
+
+/** Shown when the website could not be updated with the last save (old version stays online). */
+function buildWarning(): HTMLElement | string {
+  const b = state.build;
+  if (!b || b.ok) return "";
+  return h(
+    "div",
+    { class: "alert", role: "alert" },
+    h("strong", {}, "Die Website konnte nicht aktualisiert werden. "),
+    "Online ist noch der vorherige Stand. Meist hilft es, das genannte Bild neu hochzuladen oder den letzten Stand unter «Verlauf» wiederherzustellen.",
+    h("pre", {}, b.error ?? ""),
+  );
+}
+
+/** Checks the build result a few seconds after each save. */
+async function refreshBuildStatus(): Promise<void> {
+  await new Promise((r) => setTimeout(r, 4000));
+  try {
+    const fresh = await api.state();
+    const changed = JSON.stringify(fresh.build?.ok) !== JSON.stringify(state.build?.ok) || fresh.build?.error !== state.build?.error;
+    state.build = fresh.build;
+    if (changed) {
+      const old = main.querySelector(".alert");
+      const next = buildWarning();
+      if (old) old.replaceWith(next);
+      else if (next) main.prepend(next);
+      if (fresh.build && !fresh.build.ok) toast("Gespeichert, aber die Website konnte nicht aktualisiert werden. Details oben.", "error");
+    }
+  } catch {
+    // Offline for a moment: the next save checks again.
+  }
+}
+
+window.addEventListener("hofchilbi:saved", () => void refreshBuildStatus());
 
 window.addEventListener("hashchange", () => {
   if (isDirty() && !confirm("Es gibt ungespeicherte Änderungen. Trotzdem wechseln? Die Änderungen gehen verloren.")) {

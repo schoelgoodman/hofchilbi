@@ -63,6 +63,16 @@
             "${appdata}/site:/site:ro"
           ];
           networks = ["internal"];
+          # Hardening: nothing in the image is writable (only the mounted volumes and a small
+          # /tmp), no Linux capabilities, no privilege escalation, bounded memory and processes.
+          extraOptions = [
+            "--read-only"
+            "--tmpfs=/tmp:rw,noexec,nosuid,size=512m"
+            "--cap-drop=ALL"
+            "--security-opt=no-new-privileges"
+            "--pids-limit=256"
+            "--memory=1g"
+          ];
         };
       };
     };

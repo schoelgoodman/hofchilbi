@@ -12,14 +12,14 @@ async function tmp(): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), "hofchilbi-ed-"));
 }
 
-const TEAM = { members: [{ name: "Eliane Derungs", role: "Präsidentin" }] };
+const TEAM = { members: [{ name: "Erika Muster", role: "Präsidium" }] };
 
 test("putDoc: needs the current version (no silent overwrite)", async () => {
   const s = new Store(await tmp());
   const v1 = await s.putDoc("team", TEAM, "");
   await assert.rejects(s.putDoc("team", TEAM, ""), (e: HttpError) => e.status === 409);
   await assert.rejects(s.putDoc("team", TEAM, "stale"), (e: HttpError) => e.status === 409);
-  const v2 = await s.putDoc("team", { members: [...TEAM.members, { name: "Roman Rutz", role: "Finanzen" }] }, v1);
+  const v2 = await s.putDoc("team", { members: [...TEAM.members, { name: "Max Muster", role: "Finanzen" }] }, v1);
   assert.notEqual(v1, v2);
   assert.equal((await s.getDoc("team")).version, v2);
 });
@@ -81,6 +81,21 @@ test("upload: SVG with script becomes a PNG, metadata stripped, PDF only for doc
   const pdf = await processUpload(dir, "dokumente", "Gönner Brief 2027.pdf", Buffer.from("%PDF-1.7 hello world"));
   assert.match(pdf.path, /^media\/dokumente\/goenner-brief-2027-[0-9a-f]{6}\.pdf$/);
   await assert.rejects(processUpload(dir, "logos", "evil.png", Buffer.from("<html>not an image</html>")), (e: HttpError) => e.status === 415);
+});
+
+test("references: missing files and PDFs in image fields are rejected", async () => {
+  const dir = await tmp();
+  const s = new Store(dir);
+  await writeFile(path.join(dir, "x.txt"), "");
+  await processUpload(dir, "dokumente", "brief.pdf", Buffer.from("%PDF-1.7 hello world"));
+  const pdf = (await import("node:fs/promises")).readdir(path.join(dir, "media/dokumente"));
+  const pdfPath = `media/dokumente/${(await pdf)[0]}`;
+  await assert.rejects(
+    s.putDoc("team", { groupPhoto: pdfPath, members: [{ name: "A", role: "B", photo: "media/team/gibts-nicht.jpg" }] }, ""),
+    (e: HttpError) => e.status === 422 && /Bild/.test((e.details as Record<string, string>).groupPhoto!) && /gibt es nicht/.test((e.details as Record<string, string>)["members.0.photo"]!),
+  );
+  // A PDF is fine where a link is expected.
+  await s.checkRefs({ links: { goenner: pdfPath } });
 });
 
 test("history: commit, log and restore an older state as a new commit", async () => {

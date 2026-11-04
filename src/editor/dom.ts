@@ -63,3 +63,8 @@ export function confirmDialog(message: string, okLabel = "Löschen"): Promise<bo
 export function clone<T>(v: T): T {
   return structuredClone(v);
 }
+
+/** Tells the app shell that content was saved (it then checks whether the website build worked). */
+export function announceSaved(): void {
+  window.dispatchEvent(new Event("hofchilbi:saved"));
+}
