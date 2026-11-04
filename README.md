@@ -12,7 +12,8 @@ Node 24 locally (`.nvmrc`); production runs compiled JS on Node 22.
 
 ```sh
 npm install
-npm run dev        # site on :4330, editor on :4331 (open locally, no key)
+npm run import     # one-time: copy the live Webflow site into dev-content/ (gitignored)
+npm run dev        # site on :4330 (rebuilds on change), editor on :4331 (open locally, no key)
 npm test           # unit tests (node --test, native TS)
 npm run typecheck
 npm run build      # tsc → dist/
@@ -50,6 +51,9 @@ Check:
 Code updates: push to GitHub, then Neo → Update → Activate. The image is built by Nix on the
 server (not pulled from a registry).
 
+**Content to the server:** `scripts/push-content.sh <ssh-host>` uploads `dev-content/` to
+`<appdata>/hofchilbi/content.incoming`; Hermes swaps it in (DEPLOY.md §4). Never via GitHub.
+
 **Custom domain:** only at go-live, once DNS for `hofchilbi.ch` points to the server:
 `[services.hofchilbi] customDomains = ["www.hofchilbi.ch", "hofchilbi.ch"]`.
 Never add the editor subdomain as a custom domain.
@@ -58,7 +62,11 @@ Never add the editor subdomain as a custom domain.
 
 ```
 src/server/      HTTP server (roles: site | editor), access checks, static files
-src/render/      site generator; builds into site/build-*/ and swaps site/current atomically
+src/content/     content schema (zod) and loader: site/sponsors/anzapfer/team/galleries YAML, news + pages Markdown
+src/render/      site generator: pages, layout, images (sharp → WebP, cached), Markdown;
+                 builds into site/build-*/ and swaps site/current atomically
+src/design/      CSS, JS, SVG theme assets (font: Archivo, OFL, from @fontsource-variable/archivo)
+scripts/         import-webflow.ts (one-time migration), push-content.sh
 modules/         Neo plugin (Nix): packages/ = image, services/hofchilbi* = containers + nginx
 ```
 

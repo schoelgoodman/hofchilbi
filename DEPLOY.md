@@ -48,7 +48,34 @@ Neo → **Update** (or update only the plugin input) → **Activate**. Nothing e
 
 ## 4. Content
 
-Not yet. Instructions follow when the first content import is ready.
+Only when the operator says that new content was uploaded to `<appdata>/hofchilbi/content.incoming`
+(they run `scripts/push-content.sh` from their Mac; content never comes from GitHub).
+
+### First install (live `content/` is empty or has no `site.yaml`)
+
+```sh
+A=<appdata>/hofchilbi
+ls "$A/content.incoming/site.yaml"                 # must exist, else stop and tell the operator
+systemctl stop docker-hofchilbi-redaktion docker-hofchilbi
+[ -z "$(ls -A "$A/content")" ] || mv "$A/content" "$A/content.old-$(date +%F-%H%M)"
+mkdir -p "$A/content"
+cp -a "$A/content.incoming/." "$A/content/"
+chown -R --reference="$A/site" "$A/content"
+chmod -R u+rwX,go-w "$A/content"
+rm -rf "$A/content.incoming"
+systemctl start docker-hofchilbi docker-hofchilbi-redaktion
+docker logs hofchilbi --tail 20     # expect "Site: built in … ms" (first build ~15 s: images are encoded)
+```
+
+Then check `https://hofchilbi.<domain>/`, `/geschichte`, `/impressionen`, `/kontakt` all show the
+real site (not "Neue Website im Aufbau") and report to the operator.
+
+If the log says `content invalid`: the old site stays online. Send the operator the log lines.
+
+### Content already exists (editors have worked in the Redaktion)
+
+Do **not** replace it. Stop and ask the operator: the editors' changes would be lost.
+`content.incoming` stays untouched until the operator decides.
 
 ## 5. Go-live (only on explicit instruction)
 

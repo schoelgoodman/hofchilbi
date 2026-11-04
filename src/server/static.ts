@@ -61,7 +61,7 @@ async function fileAt(full: string): Promise<{ file: string; size: number; mtime
 
 export function cacheControl(file: string): string {
   if (file.endsWith(".html")) return "no-cache";
-  if (/\/_assets\//.test(file)) return "public, max-age=31536000, immutable";
+  if (/\/(_assets|_img)\//.test(file)) return "public, max-age=31536000, immutable";
   return "public, max-age=604800";
 }
 
