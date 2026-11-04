@@ -1,7 +1,7 @@
 import { eventLabel, eventYear } from "../content/load.ts";
 import type { Sponsor } from "../content/schema.ts";
 import { html, type Raw } from "./html.ts";
-import { hero, type Ctx, type PageDef } from "./layout.ts";
+import { hero, heroPreload, type Ctx, type PageDef } from "./layout.ts";
 import { markdown, markdownText } from "./markdown.ts";
 
 const LONG_DATE = new Intl.DateTimeFormat("de-CH", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -13,7 +13,7 @@ function external(url: string | undefined): Raw {
 async function logoList(ctx: Ctx, list: Sponsor[], cls: string, sizes: string): Promise<Raw> {
   const items = await Promise.all(
     list.map(async (s) => {
-      const img = await ctx.images.img(s.logo, { alt: s.name, sizes, widths: [300, 600] });
+      const img = await ctx.images.img(s.logo, { alt: s.name, sizes, widths: [200, 300, 400, 600] });
       return s.url
         ? html`<li><a href="${await ctx.images.href(s.url)}"${external(s.url)}>${img}</a></li>`
         : html`<li><span>${img}</span></li>`;
@@ -37,7 +37,7 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
 
   const newsItems = await Promise.all(
     news.map(async (n) => {
-      const img = n.image ? await ctx.images.img(n.image, { alt: n.imageAlt ?? "", sizes: "(min-width: 768px) 400px, 92vw", widths: [400, 800] }) : "";
+      const img = n.image ? await ctx.images.img(n.image, { alt: n.imageAlt ?? "", sizes: "(min-width: 768px) 400px, 92vw", widths: [400, 600, 800] }) : "";
       return html`<article class="news__item" aria-roledescription="Beitrag">
         <div>
           <h3>${n.title}</h3>
@@ -67,7 +67,7 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
   const current = anzapfer.list[0];
   const anz = current
     ? html`<section class="split" aria-labelledby="anzapfer-title">
-    ${current.photo ? await ctx.images.img(current.photo, { alt: `${current.name}, Anzapfer der Hofchilbi ${current.year}`, sizes: "(min-width: 992px) 46vw, 92vw", widths: [600, 900, 1200] }) : ""}
+    ${current.photo ? await ctx.images.img(current.photo, { alt: `${current.name}, Anzapfer der Hofchilbi ${current.year}`, sizes: "(min-width: 992px) 46vw, 92vw", widths: [400, 600, 900, 1200] }) : ""}
     <div>
       <h2 id="anzapfer-title">Anzapfer Hofchilbi ${current.year}</h2>
       <p class="split__name">${current.name}</p>
@@ -97,11 +97,11 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
     location: {
       "@type": "Place",
       name: site.event.location ?? "Wil SG",
-      address: { "@type": "PostalAddress", addressLocality: "Wil", addressRegion: "SG", addressCountry: "CH" },
+      address: { "@type": "PostalAddress", postalCode: "9500", addressLocality: "Wil", addressRegion: "SG", addressCountry: "CH" },
     },
     image: [ctx.ogImage],
     description: site.seo.description,
-    organizer: { "@type": "SportsOrganization", name: "KTV Wil Handball", url: site.contact.ktv },
+    organizer: { "@id": `${ctx.siteUrl}/#ktv` },
     ...(p ? { sponsor: { "@type": "Organization", name: p.name, ...(p.url ? { url: p.url } : {}) } } : {}),
     url: ctx.siteUrl + "/",
   };
@@ -110,9 +110,17 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
     path: "/",
     title: `${site.title} | ${label}`,
     description: site.seo.description,
+    preload: await heroPreload(ctx, site.hero.image),
     hero: await hero(ctx, { image: site.hero.image, full: true, inner: heroInner }),
     main: html`${newsSection}${helper}${anz}${sponsorSection}`,
-    jsonLd: event,
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@graph": [
+        { ...event, "@context": undefined, "@id": `${ctx.siteUrl}/#event-${year}` },
+        { "@type": "SportsOrganization", "@id": `${ctx.siteUrl}/#ktv`, name: "KTV Wil Handball", url: site.contact.ktv, email: site.contact.email, sameAs: [site.social.instagram, site.social.facebook].filter(Boolean) },
+        { "@type": "WebSite", "@id": `${ctx.siteUrl}/#website`, url: `${ctx.siteUrl}/`, name: site.title, inLanguage: "de-CH", publisher: { "@id": `${ctx.siteUrl}/#ktv` } },
+      ],
+    },
   };
 }
 
@@ -128,6 +136,7 @@ export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
     path: "/geschichte",
     title: page.title,
     description: page.description ?? markdownText(page.body).slice(0, 155).replace(/\s\S*$/, "") + " …",
+    preload: await heroPreload(ctx, site.pageImages.geschichte),
     hero: await hero(ctx, { image: site.pageImages.geschichte, inner: html`<h1>${page.title}</h1>` }),
     main: html`<section class="section" aria-labelledby="g-title">
       <h2 id="g-title" class="visually-hidden">${page.title}</h2>
@@ -163,6 +172,7 @@ export async function impressionenPage(ctx: Ctx): Promise<PageDef> {
     path: "/impressionen",
     title: "Impressionen",
     description: `Fotos der Hofchilbi Wil${years ? ` ${years}` : ""}: Stimmung, Bars und Festbetrieb im Hof zu Wil.`,
+    preload: await heroPreload(ctx, site.pageImages.impressionen),
     hero: await hero(ctx, { image: site.pageImages.impressionen, inner: html`<h1>Impressionen</h1>` }),
     main: html`${sections}`,
   };
@@ -183,6 +193,7 @@ export async function kontaktPage(ctx: Ctx): Promise<PageDef> {
     path: "/kontakt",
     title: "Kontakt",
     description: `Kontakt zur Hofchilbi Wil: E-Mail ${site.contact.email} und das Organisationskomitee des KTV Wil Handball.`,
+    preload: await heroPreload(ctx, site.pageImages.kontakt),
     hero: await hero(ctx, { image: site.pageImages.kontakt, inner: html`<h1>Kontakt</h1>` }),
     main: html`<section class="section" aria-labelledby="mail-title">
       <h2 id="mail-title">E-Mail-Adresse</h2>
@@ -201,6 +212,7 @@ export async function notFoundPage(ctx: Ctx): Promise<PageDef> {
     title: "Seite nicht gefunden",
     description: "Diese Seite gibt es nicht.",
     noindex: true,
+    preload: await heroPreload(ctx, ctx.content.site.pageImages.kontakt),
     hero: await hero(ctx, { image: ctx.content.site.pageImages.kontakt, inner: html`<h1>Nicht gefunden</h1>` }),
     main: html`<section class="section notfound"><h2>Diese Seite gibt es nicht (mehr).</h2><p><a class="button button--solid" href="/">Zur Startseite</a></p></section>`,
   };

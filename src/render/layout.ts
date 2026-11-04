@@ -28,6 +28,12 @@ export interface PageDef {
   main: Raw;
   jsonLd?: unknown;
   noindex?: boolean;
+  /** Hero image to preload with high priority (it is the LCP element). */
+  preload?: { srcset: string; sizes: string };
+}
+
+export async function heroPreload(ctx: Ctx, image: string): Promise<{ srcset: string; sizes: string }> {
+  return { srcset: (await ctx.images.responsive(image, {})).srcset, sizes: "100vw" };
 }
 
 /** Hero with background photo, top bar and skyline. `full` = start page height. */
@@ -48,7 +54,7 @@ export async function hero(ctx: Ctx, o: { image: string; full?: boolean; inner: 
     </div>
   </div>
   <div class="hero__content">${o.inner}</div>
-  <img class="hero__skyline" src="${ctx.assets.svg["skyline-white"]}" alt="" width="1935" height="210">
+  <img class="hero__skyline" src="${ctx.assets.svg["skyline-white"]}" alt="" width="1935" height="210" fetchpriority="high">
 </header>`;
 }
 
@@ -113,9 +119,12 @@ export function layout(ctx: Ctx, page: PageDef): string {
 <title>${fullTitle}</title>
 <meta name="description" content="${page.description}">
 ${page.noindex ? html`<meta name="robots" content="noindex">` : html`<link rel="canonical" href="${url}">`}
+${page.preload ? html`<link rel="preload" as="image" imagesrcset="${page.preload.srcset}" imagesizes="${page.preload.sizes}" fetchpriority="high">` : ""}
+<link rel="preload" href="${ctx.assets.svg["skyline-white"]}" as="image" type="image/svg+xml" fetchpriority="high">
 <link rel="preload" href="${ctx.assets.fontLatin}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="${ctx.assets.css}">
 <link rel="icon" href="${ctx.assets.favicon}" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="theme-color" content="#000000">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="de_CH">

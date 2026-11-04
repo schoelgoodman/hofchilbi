@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ContentError, loadContent } from "../content/load.ts";
 import { writeAssets } from "../design/assets.ts";
@@ -88,7 +88,7 @@ async function buildOnce(): Promise<void> {
       ["404.html", await notFoundPage(ctx)],
     ];
     for (const [file, page] of pages) await writeFile(path.join(dir, file), layout(ctx, page));
-    await writeFile(path.join(dir, "sitemap.xml"), sitemap(ctx.siteUrl, pages.filter(([, p]) => !p.noindex).map(([, p]) => p.path)));
+    await writeFile(path.join(dir, "sitemap.xml"), sitemap(ctx.siteUrl, pages.filter(([, p]) => !p.noindex).map(([, p]) => p.path), await contentModified(cDir)));
   });
   await images.pruneCache();
   console.log(`Site: built in ${Date.now() - started} ms`);
@@ -120,8 +120,23 @@ export async function readStatus(): Promise<BuildStatus | null> {
   }
 }
 
-function sitemap(base: string, paths: string[]): string {
-  const today = new Date().toISOString().slice(0, 10);
+/** Date of the last content change (newest file in content/), for sitemap lastmod. */
+async function contentModified(dir: string): Promise<string> {
+  let newest = 0;
+  const walk = async (d: string): Promise<void> => {
+    for (const e of await readdir(d, { withFileTypes: true })) {
+      if (e.name.startsWith(".")) continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) await walk(p);
+      else newest = Math.max(newest, (await stat(p)).mtimeMs);
+    }
+  };
+  await walk(dir).catch(() => undefined);
+  return new Date(newest || Date.now()).toISOString().slice(0, 10);
+}
+
+function sitemap(base: string, paths: string[], lastmod: string): string {
+  const today = lastmod;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${paths.map((p) => `  <url><loc>${base}${p}</loc><lastmod>${today}</lastmod></url>`).join("\n")}

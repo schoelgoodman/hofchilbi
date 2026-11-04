@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { copyFile, link, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
+import { copyFile, link, mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { ContentError } from "../content/load.ts";
@@ -31,7 +31,7 @@ interface Meta {
   height: number;
 }
 
-const DEFAULT_WIDTHS = [480, 800, 1200, 1600, 2000];
+const DEFAULT_WIDTHS = [480, 720, 960, 1280, 1600, 2000];
 const RASTER = /\.(jpe?g|png|webp|avif|gif|tiff?)$/i;
 
 export class Images {
@@ -93,7 +93,7 @@ export class Images {
   /** Encodes one variant into the cache (once) and links it into the build. */
   private async variant(rel: string, width: number, aspect: number | undefined, format: "webp" | "jpeg"): Promise<string> {
     const base = path.basename(rel).replace(/\.[^.]+$/, "").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 40);
-    const name = `${base}-${await this.key(rel, `${width}|${aspect ?? ""}|${format}|q2`)}-${width}.${format === "jpeg" ? "jpg" : format}`;
+    const name = `${base}-${await this.key(rel, `${width}|${aspect ?? ""}|${format}|q3`)}-${width}.${format === "jpeg" ? "jpg" : format}`;
     const cached = path.join(this.cacheDir, name);
     let job = this.jobs.get(name);
     if (!job) {
@@ -107,7 +107,7 @@ export class Images {
             img = aspect
               ? img.resize({ width, height: Math.round(width / aspect), fit: "cover", position: "attention" })
               : img.resize({ width, withoutEnlargement: true });
-            img = format === "webp" ? img.webp({ quality: 78, effort: 4 }) : img.jpeg({ quality: 82, mozjpeg: true });
+            img = format === "webp" ? img.webp({ quality: 72, effort: 5, smartSubsample: true }) : img.jpeg({ quality: 82, mozjpeg: true });
             const tmp = `${cached}.${process.pid}.tmp`;
             await img.toFile(tmp);
             await rename(tmp, cached);
@@ -124,16 +124,36 @@ export class Images {
     return `/_img/${name}`;
   }
 
-  /** Copies a non-raster file (SVG, PDF) to its public URL /media/... and returns that URL. */
+  /**
+   * Non-raster files. SVG → /_img/<name>-<hash>.svg (immutable, cached a year). Other files (PDF)
+   * keep a stable, readable URL /media/... so links to them can be shared.
+   */
   async file(rel: string): Promise<string> {
-    const out = path.join(this.outDir, rel);
-    let job = this.jobs.get(rel);
+    const isSvg = /\.svg$/i.test(rel);
+    const pub = isSvg ? `_img/${path.basename(rel, ".svg").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 40)}-${await this.key(rel, "svg")}.svg` : rel;
+    const out = path.join(this.outDir, pub);
+    let job = this.jobs.get(pub);
     if (!job) {
       job = mkdir(path.dirname(out), { recursive: true }).then(() => copyFile(this.src(rel), out));
-      this.jobs.set(rel, job);
+      this.jobs.set(pub, job);
     }
     await job;
-    return "/" + rel.split("/").map(encodeURIComponent).join("/");
+    return "/" + pub.split("/").map(encodeURIComponent).join("/");
+  }
+
+  /** Width/height of an SVG from its attributes or viewBox (for layout-shift-free <img>). */
+  private async svgSize(rel: string): Promise<Meta | null> {
+    try {
+      const head = (await readFile(this.src(rel), "utf8")).slice(0, 4000);
+      const tag = /<svg\b[^>]*>/i.exec(head)?.[0] ?? "";
+      const num = (name: string) => Number(new RegExp(`\\s${name}="([\\d.]+)(px)?"`, "i").exec(tag)?.[1]);
+      const vb = /viewBox="\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)\s*"/i.exec(tag);
+      const width = num("width") || Number(vb?.[1]);
+      const height = num("height") || Number(vb?.[2]);
+      return width > 0 && height > 0 ? { width: Math.round(width), height: Math.round(height) } : null;
+    } catch {
+      return null;
+    }
   }
 
   /** URL of a link target: external URLs unchanged, media files copied. */
@@ -154,20 +174,28 @@ export class Images {
     const fetchpriority = o.eager ? "high" : undefined;
     if (!RASTER.test(rel)) {
       const src = await this.file(rel);
-      return html`<img src="${src}" alt="${o.alt}" class="${o.cls}" loading="${loading}" decoding="async">`;
+      const size = await this.svgSize(rel);
+      return html`<img src="${src}"${size ? html` width="${size.width}" height="${size.height}"` : ""} alt="${o.alt}" class="${o.cls}" loading="${loading}" decoding="async"${fetchpriority ? html` fetchpriority="high"` : ""}>`;
     }
+    const r = await this.responsive(rel, o);
+    return html`<img src="${r.src}" srcset="${r.srcset}" sizes="${o.sizes}" width="${r.width}" height="${r.height}" alt="${o.alt}" class="${o.cls}" loading="${loading}" decoding="async"${fetchpriority ? html` fetchpriority="high"` : ""}>`;
+  }
+
+  /** The variants of a raster image (also used to preload the hero image in <head>). */
+  async responsive(rel: string, o: Pick<ImageOpts, "widths" | "aspect">): Promise<{ src: string; srcset: string; width: number; height: number }> {
     const meta = await this.dimensions(rel);
     const ratio = o.aspect ?? meta.width / meta.height;
-    const candidates = (o.widths ?? DEFAULT_WIDTHS).filter((w) => w <= meta.width);
-    if (candidates.length === 0 || candidates.at(-1)! < Math.min(meta.width, Math.max(...(o.widths ?? DEFAULT_WIDTHS)))) {
-      candidates.push(Math.min(meta.width, Math.max(...(o.widths ?? DEFAULT_WIDTHS))));
-    }
-    const widths = [...new Set(candidates)].sort((a, b) => a - b);
+    const wanted = o.widths ?? DEFAULT_WIDTHS;
+    const top = Math.min(meta.width, Math.max(...wanted));
+    const widths = [...new Set([...wanted.filter((w) => w < top), top])].sort((a, b) => a - b);
     const urls = await Promise.all(widths.map((w) => this.variant(rel, w, o.aspect, "webp")));
-    const srcset = urls.map((u, i) => `${u} ${widths[i]}w`).join(", ");
-    const fallback = urls[Math.min(1, urls.length - 1)]!;
     const w = widths.at(-1)!;
-    return html`<img src="${fallback}" srcset="${srcset}" sizes="${o.sizes}" width="${w}" height="${Math.round(w / ratio)}" alt="${o.alt}" class="${o.cls}" loading="${loading}" decoding="async"${fetchpriority ? html` fetchpriority="high"` : ""}>`;
+    return {
+      src: urls[Math.min(1, urls.length - 1)]!,
+      srcset: urls.map((u, i) => `${u} ${widths[i]}w`).join(", "),
+      width: w,
+      height: Math.round(w / ratio),
+    };
   }
 
   /** Removes cached variants not used by this build (after deletes/replacements). */
