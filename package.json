@@ -1,0 +1,20 @@
+{
+  "name": "hofchilbi",
+  "private": true,
+  "type": "module",
+  "description": "Website and editor for Hofchilbi Wil. Content lives outside this repo.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch src/server/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "start": "node dist/server/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "typescript": "^5.9.3"
+  }
+}

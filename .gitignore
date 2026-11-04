@@ -1,0 +1,10 @@
+# Content never lives in this repo (it sits on the Neo appdata volume).
+dev-content/
+site/
+dist/
+node_modules/
+result
+result-*
+.env
+.DS_Store
+*.tsbuildinfo
