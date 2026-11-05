@@ -1,5 +1,5 @@
 import { eventLabel, eventYear } from "../content/load.ts";
-import type { Sponsor } from "../content/schema.ts";
+import type { Anzapfer, Sponsor } from "../content/schema.ts";
 import { html, type Raw } from "./html.ts";
 import { hero, heroPreload, type Ctx, type PageDef } from "./layout.ts";
 import { markdown, markdownText } from "./markdown.ts";
@@ -10,16 +10,35 @@ function external(url: string | undefined): Raw {
   return url && /^https?:/.test(url) ? html` rel="noopener" target="_blank"` : html``;
 }
 
-async function logoList(ctx: Ctx, list: Sponsor[], cls: string, sizes: string): Promise<Raw> {
+/**
+ * Size class for a logo of aspect ratio w/h: every logo covers about the same AREA of its tile, so
+ * a wide wordmark and a square emblem look equally heavy. Classes are steps of √2 in ratio
+ * (CSS in site.css, .logo-s-2 … .logo-s6); inline styles are not allowed by the CSP.
+ */
+export function logoSize(ratio: number): number {
+  return Math.max(-2, Math.min(6, Math.round(2 * Math.log2(ratio))));
+}
+
+async function logoTiles(ctx: Ctx, list: Sponsor[], tier: "main" | "small"): Promise<Raw> {
+  const sizes = tier === "main" ? "(min-width: 768px) 260px, 60vw" : "(min-width: 768px) 140px, 34vw";
   const items = await Promise.all(
     list.map(async (s) => {
-      const img = await ctx.images.img(s.logo, { alt: s.name, sizes, widths: [200, 300, 400, 600] });
+      const { img, ratio, light } = await ctx.images.logo(s.logo, { alt: s.name, sizes, widths: [200, 300, 400, 600] });
+      const inner = html`<span class="tile__logo logo-s${logoSize(ratio)}">${img}</span>${tier === "main" ? html`<span class="tile__name">${s.name}</span>` : ""}`;
       return s.url
-        ? html`<li><a href="${await ctx.images.href(s.url)}"${external(s.url)}>${img}</a></li>`
-        : html`<li><span>${img}</span></li>`;
+        ? html`<li><a class="tile${light ? " tile--dark" : ""}" href="${await ctx.images.href(s.url)}"${external(s.url)} title="${s.name}">${inner}</a></li>`
+        : html`<li><span class="tile${light ? " tile--dark" : ""}" title="${s.name}">${inner}</span></li>`;
     }),
   );
-  return html`<ul class="logos ${cls}">${items}</ul>`;
+  return html`<ul class="tiles tiles--${tier}">${items}</ul>`;
+}
+
+/** "Firma, Kontaktperson, Ort" → name (first part), detail (middle parts), place (last part). */
+export function splitGoenner(entry: string): { name: string; detail?: string; place?: string } {
+  const parts = entry.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 2) return { name: entry.trim() };
+  const detail = parts.slice(1, -1).join(", ");
+  return { name: parts[0]!, ...(detail ? { detail } : {}), place: parts.at(-1)! };
 }
 
 // ---------------------------------------------------------------- Start
@@ -31,58 +50,88 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
   const heroInner = html`<h1>${site.title}</h1>
     <p class="hero__date">${label}</p>
     <div class="buttons">
-      <a class="button" href="${await ctx.images.href(site.links.goenner)}"${external(site.links.goenner)}${site.links.goenner.endsWith(".pdf") ? html` target="_blank"` : ""}>Gönner werden</a>
-      <a class="button" href="${await ctx.images.href(site.links.helfer)}"${external(site.links.helfer)}>Helfer werden</a>
+      <a class="button button--lg" href="${await ctx.images.href(site.links.goenner)}"${external(site.links.goenner)}${site.links.goenner.endsWith(".pdf") ? html` target="_blank"` : ""}>Gönner werden</a>
+      <a class="button button--lg" href="${await ctx.images.href(site.links.helfer)}"${external(site.links.helfer)}>Helfer werden</a>
     </div>`;
 
-  const newsItems = await Promise.all(
-    news.map(async (n) => {
-      const img = n.image ? await ctx.images.img(n.image, { alt: n.imageAlt ?? "", sizes: "(min-width: 768px) 400px, 92vw", widths: [400, 600, 800] }) : "";
-      return html`<article class="news__item" aria-roledescription="Beitrag">
-        <div>
-          <h3>${n.title}</h3>
+  // Newest item large, the next ones as cards (on phones a row to swipe through).
+  const shown = news.slice(0, 7);
+  const newsCard = async (n: (typeof news)[number], featured: boolean) => {
+    const img = n.image
+      ? await ctx.images.img(n.image, {
+          alt: n.imageAlt ?? "",
+          sizes: featured ? "(min-width: 992px) 600px, 92vw" : "(min-width: 992px) 380px, 80vw",
+          widths: featured ? [400, 600, 800, 1200] : [400, 600, 800],
+          aspect: featured ? undefined : 4 / 3,
+        })
+      : "";
+    return html`<article class="${featured ? "news__featured" : "news__card"}">
+        ${img ? html`<div class="news__media">${img}</div>` : ""}
+        <div class="news__body">
           <p class="news__date"><time datetime="${n.date}">${LONG_DATE.format(new Date(n.date))}</time></p>
+          <h3>${n.title}</h3>
           ${markdown(n.body)}
+          ${n.ctaLabel && n.ctaUrl
+            ? html`<p class="news__cta"><a class="button button--dark" href="${await ctx.images.href(n.ctaUrl)}"${external(n.ctaUrl)}${n.ctaUrl.endsWith(".pdf") ? html` target="_blank"` : ""}>${n.ctaLabel}</a></p>`
+            : ""}
         </div>
-        ${img}
       </article>`;
-    }),
-  );
-  const newsSection = news.length
-    ? html`<section class="section section--rule news" data-news aria-labelledby="news-title">
+  };
+  const [newest, ...older] = shown;
+  const newsSection = newest
+    ? html`<section class="section news" aria-labelledby="news-title">
     <h2 id="news-title">Hofchilbi-News</h2>
-    <div class="news__track">${newsItems}</div>
-    ${news.length > 1
-      ? html`<div class="news__controls" hidden><button type="button" data-prev aria-label="Vorherige News">‹</button><button type="button" data-next aria-label="Nächste News">›</button></div>`
-      : ""}
+    ${await newsCard(newest, true)}
+    ${older.length ? html`<div class="news__list">${await Promise.all(older.map((n) => newsCard(n, false)))}</div>` : ""}
   </section>`
     : "";
 
   const helper = html`<section class="banner" aria-labelledby="helfer-title">
     ${await ctx.images.img(site.helperCta.image, { alt: "", sizes: "100vw", cls: "banner__bg" })}
     <h2 id="helfer-title">${site.helperCta.title}</h2>
-    <a class="button" href="${await ctx.images.href(site.links.helfer)}"${external(site.links.helfer)}>Helfer werden</a>
+    <a class="button button--lg" href="${await ctx.images.href(site.links.helfer)}"${external(site.links.helfer)}>Helfer werden</a>
   </section>`;
 
-  const current = anzapfer.list[0];
+  const current = anzapfer.list.find((a) => a.name);
   const anz = current
     ? html`<section class="split" aria-labelledby="anzapfer-title">
     ${current.photo ? await ctx.images.img(current.photo, { alt: `${current.name}, Anzapfer der Hofchilbi ${current.year}`, sizes: "(min-width: 992px) 46vw, 92vw", widths: [400, 600, 900, 1200] }) : ""}
     <div>
       <h2 id="anzapfer-title">Anzapfer Hofchilbi ${current.year}</h2>
       <p class="split__name">${current.name}</p>
-      <a class="button button--solid" href="/geschichte#anzapfer">Ehemalige Anzapfer ansehen</a>
+      <a class="button button--dark" href="/geschichte#anzapfer">Ehemalige Anzapfer ansehen</a>
     </div>
   </section>`
     : "";
 
   const p = sponsors.presenting;
-  const sponsorSection = html`<section class="sponsors" id="sponsoren" aria-label="Sponsoren und Gönner">
-    ${p ? html`<h2>Presenting-Partner</h2>${await logoList(ctx, [p], "logos--presenting", "295px")}` : ""}
-    ${sponsors.main.length ? html`<h2>Hauptsponsoren</h2>${await logoList(ctx, sponsors.main, "logos--main", "220px")}` : ""}
-    ${sponsors.sponsors.length ? html`<h2>Sponsoren</h2>${await logoList(ctx, sponsors.sponsors, "", "200px")}` : ""}
-    ${sponsors.media.length ? html`<h2>Medienpartner</h2>${await logoList(ctx, sponsors.media, "", "200px")}` : ""}
-    ${sponsors.goenner.length ? html`<h2>Gönner</h2><ul class="goenner">${sponsors.goenner.map((g) => html`<li>${g}</li>`)}</ul>` : ""}
+  const presentingLogo = p ? (await ctx.images.logo(p.logoWhite ?? p.logo, { alt: p.name, sizes: "(min-width: 768px) 420px, 70vw", widths: [400, 600, 840] })).img : "";
+  const tier = async (title: string, list: Sponsor[], kind: "main" | "small") =>
+    list.length ? html`<h3 class="tier">${title}</h3>${await logoTiles(ctx, list, kind)}` : "";
+  const sponsorSection = html`<section class="sponsors section--paper" id="sponsoren" aria-labelledby="sponsoren-title">
+    <div class="sponsors__inner">
+      <h2 id="sponsoren-title">Unsere Partner</h2>
+      ${p
+        ? html`<${p.url ? "a" : "div"} class="presenting"${p.url ? html` href="${await ctx.images.href(p.url)}"${external(p.url)}` : ""}>
+        <span class="presenting__label">Presenting Partner</span>
+        <span class="presenting__logo${p.logoWhite ? "" : " presenting__logo--plate"}">${presentingLogo}</span>
+      </${p.url ? "a" : "div"}>`
+        : ""}
+      ${await tier("Hauptsponsoren", sponsors.main, "main")}
+      ${await tier("Sponsoren", sponsors.sponsors, "small")}
+      ${await tier("Medienpartner", sponsors.media, "small")}
+      ${sponsors.goenner.length
+        ? html`<h3 class="tier">Gönner</h3>
+      <div class="goenner">
+        <ul class="goenner__list">${sponsors.goenner.map((g) => {
+          const { name, detail, place } = splitGoenner(g);
+          const meta = [detail, place].filter(Boolean).join(" · ");
+          return html`<li><span class="goenner__name">${name}</span>${meta ? html`<span class="goenner__meta">${meta}</span>` : ""}</li>`;
+        })}</ul>
+        <p class="goenner__thanks">Herzlichen Dank für die Unterstützung!</p>
+      </div>`
+        : ""}
+    </div>
   </section>`;
 
   const [first, last] = [[...site.event.days].sort()[0]!, [...site.event.days].sort().at(-1)!];
@@ -125,26 +174,83 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
 }
 
 // ---------------------------------------------------------------- Geschichte
+/** Anzapfer list rows: consecutive years with the same note are merged ("2020–2021"). */
+export function anzapferRows(list: Anzapfer["list"]): { from: number; to: number; name?: string; note?: string; photo?: string }[] {
+  const rows: { from: number; to: number; name?: string; note?: string; photo?: string }[] = [];
+  for (const a of [...list].sort((x, y) => y.year - x.year)) {
+    const prev = rows.at(-1);
+    if (a.note && !a.name && prev?.note && !prev.name && prev.note === a.note && prev.from === a.year + 1) {
+      prev.from = a.year;
+      continue;
+    }
+    rows.push({ from: a.year, to: a.year, name: a.name, note: a.name ? undefined : a.note, photo: a.photo });
+  }
+  return rows;
+}
+
 export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
-  const { site, pages, anzapfer } = ctx.content;
+  const { site, pages, anzapfer, timeline } = ctx.content;
   const page = pages.geschichte ?? { title: "Geschichte", body: "" };
-  const list = anzapfer.list;
-  const half = Math.ceil(list.length / 2);
-  const column = (items: typeof list) =>
-    html`<dl>${items.map((a) => html`<dt>${a.year}</dt><dd>${a.name}</dd>`)}</dl>`;
+
+  const timelineSection = timeline.entries.length
+    ? html`<section class="section timeline-section" aria-labelledby="tl-title">
+      <h2 id="tl-title">Meilensteine</h2>
+      <ol class="timeline">${timeline.entries.map((e) =>
+        e.highlight
+          ? html`<li class="timeline__item timeline__item--fact"><span class="timeline__year">${e.year}</span><p class="timeline__fact">${e.text}</p></li>`
+          : html`<li class="timeline__item"><span class="timeline__year">${e.year}</span><p class="timeline__text">${e.text}</p></li>`,
+      )}</ol>
+    </section>`
+    : "";
+
+  const current = anzapfer.list.find((a) => a.name);
+  const featured = current
+    ? html`<div class="anz-featured">
+        ${current.photo ? await ctx.images.img(current.photo, { alt: `${current.name}, Anzapfer der Hofchilbi ${current.year}`, sizes: "(min-width: 768px) 360px, 92vw", widths: [360, 540, 720], aspect: 4 / 5 }) : ""}
+        <div>
+          <p class="anz-featured__label">Anzapfer ${current.year}</p>
+          <p class="anz-featured__name">${current.name}</p>
+        </div>
+      </div>`
+    : "";
+  const rows = anzapferRows(anzapfer.list.filter((a) => a !== current));
+  const decades = new Map<number, typeof rows>();
+  for (const r of rows) {
+    const d = Math.floor(r.from / 10) * 10;
+    decades.set(d, [...(decades.get(d) ?? []), r]);
+  }
+  const decadePanels = await Promise.all(
+    [...decades].map(async ([decade, items]) => {
+      const lis = await Promise.all(
+        items.map(async (r) => {
+          const photo = r.photo ? await ctx.images.img(r.photo, { alt: "", sizes: "44px", widths: [88], aspect: 1, cls: "anz-list__photo" }) : "";
+          const years = r.from === r.to ? String(r.from) : `${r.from}–${String(r.to).slice(-2)}`;
+          return r.name
+            ? html`<li><span class="anz-list__year">${years}</span><span class="anz-list__name">${r.name}</span>${photo}</li>`
+            : html`<li class="anz-list__gap"><span class="anz-list__year">${years}</span><span class="anz-list__name">${r.note}</span></li>`;
+        }),
+      );
+      return html`<div class="anz-decade"><h3 class="tier">${decade}er</h3><ul class="anz-list">${lis}</ul></div>`;
+    }),
+  );
+
   return {
     path: "/geschichte",
     title: page.title,
     description: page.description ?? markdownText(page.body).slice(0, 155).replace(/\s\S*$/, "") + " …",
     preload: await heroPreload(ctx, site.pageImages.geschichte),
     hero: await hero(ctx, { image: site.pageImages.geschichte, inner: html`<h1>${page.title}</h1>` }),
-    main: html`<section class="section" aria-labelledby="g-title">
+    main: html`<section class="section history" aria-labelledby="g-title">
       <h2 id="g-title" class="visually-hidden">${page.title}</h2>
-      <div class="prose">${markdown(page.body)}</div>
+      <div class="prose prose--lead">${markdown(page.body)}</div>
     </section>
-    <section class="section" id="anzapfer" aria-labelledby="anz-title">
-      <h2 id="anz-title">Ehemalige Anzapfer</h2>
-      <div class="years">${column(list.slice(0, half))}${column(list.slice(half))}</div>
+    ${timelineSection}
+    <section class="section--paper anz" id="anzapfer" aria-labelledby="anz-title">
+      <div class="anz__inner">
+        <h2 id="anz-title">Unsere Anzapfer</h2>
+        ${featured}
+        <div class="anz-decades">${decadePanels}</div>
+      </div>
     </section>`,
   };
 }
@@ -179,28 +285,67 @@ export async function impressionenPage(ctx: Ctx): Promise<PageDef> {
 }
 
 // ---------------------------------------------------------------- Kontakt
+/** "Eliane Derungs" → "ED" (placeholder for a missing portrait). */
+export function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0]!.toUpperCase())
+    .filter((c) => /\p{L}/u.test(c))
+    .slice(0, 2)
+    .join("");
+}
+
 export async function kontaktPage(ctx: Ctx): Promise<PageDef> {
   const { site, team } = ctx.content;
+  const mail = site.contact.email;
+  const goenner = site.links.goenner;
+  const tiles: { href: string; title: string; text: string; external: boolean; icon?: string; wide?: boolean }[] = [
+    { href: await ctx.images.href(site.links.helfer), title: "Helfer werden", text: "Melde dich für einen Einsatz an der Hofchilbi an.", external: /^https?:/.test(site.links.helfer) },
+    { href: await ctx.images.href(goenner), title: "Gönner werden", text: goenner.endsWith(".pdf") ? "Gönnerbrief mit allen Infos (PDF)." : "Unterstütze die Hofchilbi als Gönner.", external: /^https?:/.test(goenner) || goenner.endsWith(".pdf") },
+    { href: `mailto:${mail}?subject=${encodeURIComponent("Sponsoring Hofchilbi")}`, title: "Sponsoring anfragen", text: "Werde Partner der Hofchilbi. Wir senden dir gerne unser Angebot.", external: false, wide: true },
+  ];
+  if (site.social.instagram) tiles.push({ href: site.social.instagram, title: "Instagram", text: "Bilder und News rund um die Hofchilbi.", external: true, icon: ctx.assets.svg["instagram-black"] });
+  if (site.social.facebook) tiles.push({ href: site.social.facebook, title: "Facebook", text: "Neuigkeiten vom KTV Wil Handball.", external: true, icon: ctx.assets.svg["facebook-black"] });
+
   const members = await Promise.all(
     team.members.map(async (m) => {
       const img = m.photo
-        ? await ctx.images.img(m.photo, { alt: m.name, sizes: "220px", widths: [220, 440], aspect: 1 })
-        : html`<img class="placeholder" src="${ctx.assets.svg["ktv-black-color"]}" alt="" width="220" height="220" loading="lazy">`;
-      return html`<li>${img}<div class="team__name">${m.name}</div><div class="team__role">${m.role}</div></li>`;
+        ? await ctx.images.img(m.photo, { alt: m.name, sizes: "(min-width: 992px) 280px, 45vw", widths: [280, 420, 560], aspect: 4 / 5 })
+        : html`<span class="member__initials" aria-hidden="true">${initials(m.name)}</span>`;
+      return html`<li class="member"><div class="member__photo">${img}</div><p class="member__name">${m.name}</p><p class="member__role">${m.role}</p></li>`;
     }),
   );
+  const groupPhoto = team.groupPhoto
+    ? html`<h2 id="team-title">Das OK der Hofchilbi</h2>
+      <figure class="team-banner">
+        ${await ctx.images.img(team.groupPhoto, { alt: "Das Organisationskomitee der Hofchilbi Wil", sizes: "(min-width: 1280px) 1280px, 100vw", widths: [720, 1080, 1440, 1920] })}
+      </figure>`
+    : html`<h2 id="team-title">Das OK der Hofchilbi</h2>`;
+
   return {
     path: "/kontakt",
     title: "Kontakt",
-    description: `Kontakt zur Hofchilbi Wil: E-Mail ${site.contact.email} und das Organisationskomitee des KTV Wil Handball.`,
+    description: `Kontakt zur Hofchilbi Wil: E-Mail ${mail} und das Organisationskomitee des KTV Wil Handball.`,
     preload: await heroPreload(ctx, site.pageImages.kontakt),
     hero: await hero(ctx, { image: site.pageImages.kontakt, inner: html`<h1>Kontakt</h1>` }),
-    main: html`<section class="section" aria-labelledby="mail-title">
-      <h2 id="mail-title">E-Mail-Adresse</h2>
-      <p class="contact-mail"><a href="mailto:${site.contact.email}?subject=Kontaktaufnahme">${site.contact.email}</a></p>
-      <h2>Das Team</h2>
-      ${team.groupPhoto ? await ctx.images.img(team.groupPhoto, { alt: "Das Organisationskomitee der Hofchilbi Wil", sizes: "(min-width: 1280px) 1200px, 92vw", cls: "team-photo" }) : ""}
-      <ul class="team">${members}</ul>
+    main: html`<section class="section contact" aria-labelledby="contact-title">
+      <div class="contact__main">
+        <h2 id="contact-title">Schreib uns</h2>
+        <p>Fragen zur Hofchilbi, zu Sponsoring oder für Medien: Wir melden uns gerne.</p>
+        <p class="contact__mail"><a href="mailto:${mail}?subject=Kontaktaufnahme">${mail}</a></p>
+        <a class="button button--dark" href="mailto:${mail}?subject=Kontaktaufnahme">E-Mail schreiben</a>
+      </div>
+      <ul class="contact__tiles">${tiles.map(
+        (t) => html`<li${t.wide ? html` class="contact__wide"` : ""}><a class="contact-tile" href="${t.href}"${t.external ? html` rel="noopener" target="_blank"` : ""}>
+          <span class="contact-tile__title">${t.title}${t.icon ? html`<img src="${t.icon}" alt="" width="20" height="20">` : ""}</span>
+          <span class="contact-tile__text">${t.text}</span>
+        </a></li>`,
+      )}</ul>
+    </section>
+    <section class="team-section" aria-labelledby="team-title">
+      ${groupPhoto}
+      <ul class="team-grid">${members}</ul>
     </section>`,
   };
 }
@@ -233,6 +378,6 @@ export async function notFoundPage(ctx: Ctx): Promise<PageDef> {
     noindex: true,
     preload: await heroPreload(ctx, ctx.content.site.pageImages.kontakt),
     hero: await hero(ctx, { image: ctx.content.site.pageImages.kontakt, inner: html`<h1>Nicht gefunden</h1>` }),
-    main: html`<section class="section notfound"><h2>Diese Seite gibt es nicht (mehr).</h2><p><a class="button button--solid" href="/">Zur Startseite</a></p></section>`,
+    main: html`<section class="section notfound"><h2>Diese Seite gibt es nicht (mehr).</h2><p><a class="button button--dark" href="/">Zur Startseite</a></p></section>`,
   };
 }

@@ -46,7 +46,7 @@ export interface Versioned<T> {
 }
 export interface NewsEntry {
   slug: string;
-  meta: { title: string; date: string; image?: string; imageAlt?: string; draft?: boolean };
+  meta: { title: string; date: string; image?: string; imageAlt?: string; ctaLabel?: string; ctaUrl?: string; draft?: boolean };
   body: string;
   version: string;
 }
@@ -56,7 +56,7 @@ export interface PageEntry {
   version: string;
 }
 export interface State {
-  docs: Record<"site" | "sponsors" | "anzapfer" | "team" | "galleries", Versioned<any>>;
+  docs: Record<"site" | "sponsors" | "anzapfer" | "team" | "galleries" | "timeline", Versioned<any>>;
   news: NewsEntry[];
   pages: Record<string, PageEntry>;
   publicUrl: string;

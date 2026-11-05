@@ -4,7 +4,7 @@ import { h, toast } from "./dom.ts";
 import type { Ctx } from "./screens/doc.ts";
 import { eventScreen } from "./screens/event.ts";
 import { galleriesScreen } from "./screens/galleries.ts";
-import { anzapferScreen, teamScreen } from "./screens/people.ts";
+import { anzapferScreen, teamScreen, timelineScreen } from "./screens/people.ts";
 import { sponsorsScreen } from "./screens/sponsors.ts";
 import { disposeEditor, historyScreen, impressumScreen, newsScreen, pageScreen } from "./screens/texts.ts";
 
@@ -15,7 +15,8 @@ const ROUTES: { hash: string; label: string; render: (ctx: Ctx, arg?: string) =>
   { hash: "anzapfer", label: "Anzapfer", render: anzapferScreen },
   { hash: "team", label: "Team", render: teamScreen },
   { hash: "galerien", label: "Galerien", render: galleriesScreen },
-  { hash: "geschichte", label: "Geschichte", render: (c) => pageScreen(c, "geschichte", "Geschichte", "Der Text auf der Seite Geschichte. Die Liste der Anzapfer kommt automatisch darunter.") },
+  { hash: "geschichte", label: "Geschichte", render: (c) => pageScreen(c, "geschichte", "Geschichte", "Der Text auf der Seite Geschichte. Darunter folgen automatisch der Zeitstrahl und die Anzapfer.") },
+  { hash: "zeitstrahl", label: "Zeitstrahl", render: timelineScreen },
   { hash: "impressum", label: "Impressum", render: impressumScreen },
   { hash: "verlauf", label: "Verlauf", render: historyScreen },
 ];

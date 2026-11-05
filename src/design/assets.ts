@@ -23,6 +23,8 @@ export const SVGS = [
   "facebook-black",
   "instagram-white",
   "facebook-white",
+  "hofchilbi-logo",
+  "hofchilbi-logo-white",
 ] as const;
 export type SvgName = (typeof SVGS)[number];
 

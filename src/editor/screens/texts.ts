@@ -1,6 +1,6 @@
 import { api, thumb, type NewsEntry } from "../api.ts";
 import { confirmDialog, h, toast, announceSaved } from "../dom.ts";
-import { Form, checkbox, handleSaveError, image, saveBar, text } from "../form.ts";
+import { Form, checkbox, handleSaveError, image, linkOrFile, saveBar, text } from "../form.ts";
 import type { MarkdownEditor } from "../markdown.ts";
 import type { Ctx } from "./doc.ts";
 
@@ -137,6 +137,8 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
         checkbox(f, "meta.draft", "Entwurf (auf der Website noch nicht sichtbar)"),
         image(f, "meta.image", "Bild (optional)", { dir: "news", optional: true }),
         f.get("meta.image") ? text(f, "meta.imageAlt", "Bildbeschreibung", { hint: "Kurz beschreiben, was zu sehen ist (für Google und blinde Menschen)." }) : null,
+        text(f, "meta.ctaLabel", "Button-Text (optional)", { placeholder: "z. B. Jetzt anmelden", hint: "Zeigt unter dem Text einen Button. Leer lassen für keinen Button." }),
+        linkOrFile(f, "meta.ctaUrl", "Button führt zu", "dokumente", "Webadresse (https://…), eine Seite dieser Website (z. B. /geschichte) oder eine hochgeladene PDF-Datei."),
       ],
       async (meta, body) => {
         const r = await api.putNews(n.slug, meta, body, base);

@@ -12,6 +12,7 @@ import {
   SiteSchema,
   SponsorsSchema,
   TeamSchema,
+  TimelineSchema,
 } from "../content/schema.ts";
 
 /**
@@ -25,6 +26,7 @@ export const DOCS = {
   sponsors: { file: "sponsors.yaml", schema: SponsorsSchema, label: "Sponsoren & Gönner" },
   anzapfer: { file: "anzapfer.yaml", schema: AnzapferSchema, label: "Anzapfer" },
   team: { file: "team.yaml", schema: TeamSchema, label: "Team" },
+  timeline: { file: "timeline.yaml", schema: TimelineSchema, label: "Zeitstrahl" },
   galleries: { file: "galleries.yaml", schema: GalleriesSchema, label: "Galerien" },
 } as const;
 export type DocName = keyof typeof DOCS;

@@ -10,12 +10,14 @@ import {
   SiteSchema,
   SponsorsSchema,
   TeamSchema,
+  TimelineSchema,
   type Anzapfer,
   type Galleries,
   type NewsMeta,
   type Site,
   type Sponsors,
   type Team,
+  type Timeline,
 } from "./schema.ts";
 
 export interface NewsItem extends NewsMeta {
@@ -34,6 +36,7 @@ export interface Content {
   site: Site;
   sponsors: Sponsors;
   anzapfer: Anzapfer;
+  timeline: Timeline;
   team: Team;
   galleries: Galleries;
   /** Newest first, drafts excluded unless requested. */
@@ -48,6 +51,17 @@ function check<S extends z.ZodType>(schema: S, data: unknown, file: string): z.i
   if (result.success) return result.data;
   const issues = result.error.issues.map((i) => `  ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
   throw new ContentError(`${file}:\n${issues}`);
+}
+
+/** Like yamlFile, but a missing file is fine (empty object). */
+async function optionalYamlFile<S extends z.ZodType>(dir: string, file: string, schema: S): Promise<z.infer<S>> {
+  let text = "";
+  try {
+    text = await readFile(path.join(dir, file), "utf8");
+  } catch {
+    // not created yet
+  }
+  return check(schema, YAML.parse(text) ?? {}, file);
 }
 
 async function yamlFile<S extends z.ZodType>(dir: string, file: string, schema: S): Promise<z.infer<S>> {
@@ -81,12 +95,13 @@ async function mdFiles(dir: string): Promise<string[]> {
 }
 
 export async function loadContent(dir: string, opts: { drafts?: boolean } = {}): Promise<Content> {
-  const [site, sponsors, anzapfer, team, galleries] = await Promise.all([
+  const [site, sponsors, anzapfer, team, galleries, timeline] = await Promise.all([
     yamlFile(dir, "site.yaml", SiteSchema),
     yamlFile(dir, "sponsors.yaml", SponsorsSchema),
     yamlFile(dir, "anzapfer.yaml", AnzapferSchema),
     yamlFile(dir, "team.yaml", TeamSchema),
     yamlFile(dir, "galleries.yaml", GalleriesSchema),
+    optionalYamlFile(dir, "timeline.yaml", TimelineSchema),
   ]);
 
   const news: NewsItem[] = [];
@@ -106,7 +121,7 @@ export async function loadContent(dir: string, opts: { drafts?: boolean } = {}):
 
   anzapfer.list.sort((a, b) => b.year - a.year);
   galleries.galleries.sort((a, b) => b.year - a.year);
-  return { site, sponsors, anzapfer, team, galleries, news, pages };
+  return { site, sponsors, anzapfer, team, galleries, timeline, news, pages };
 }
 
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];

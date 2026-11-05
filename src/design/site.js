@@ -1,7 +1,35 @@
 // Hofchilbi Wil — small progressive enhancements. The site works without this file:
-// the footer has all page links, galleries link to the large images, news scroll natively.
+// the footer has all page links, galleries link to the large images.
 (() => {
   "use strict";
+
+  // ---------- Sticky header ----------
+  // Fixed once JS runs: see-through at the top, black after scrolling, hidden while scrolling
+  // down (more room to read), back as soon as the visitor scrolls up or tabs into it.
+  const header = document.querySelector(".header");
+  if (header) {
+    document.documentElement.classList.add("js-header");
+    let lastY = window.scrollY;
+    let ticking = false;
+    const update = () => {
+      const y = window.scrollY;
+      header.classList.toggle("is-solid", y > 40);
+      if (y < 200 || y < lastY - 4) header.classList.remove("is-hidden");
+      else if (y > lastY + 4 && !header.contains(document.activeElement)) header.classList.add("is-hidden");
+      lastY = y;
+      ticking = false;
+    };
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (!ticking) requestAnimationFrame(update);
+        ticking = true;
+      },
+      { passive: true },
+    );
+    header.addEventListener("focusin", () => header.classList.remove("is-hidden"));
+    update();
+  }
 
   // ---------- Navigation overlay ----------
   const nav = document.getElementById("nav");
@@ -44,17 +72,6 @@
         first.focus();
       }
     });
-  }
-
-  // ---------- News carousel (only rendered with more than one item) ----------
-  for (const news of document.querySelectorAll("[data-news]")) {
-    const track = news.querySelector(".news__track");
-    const controls = news.querySelector(".news__controls");
-    if (!track || !controls) continue;
-    controls.hidden = false;
-    const step = (dir) => track.scrollBy({ left: dir * track.clientWidth, behavior: "smooth" });
-    controls.querySelector("[data-prev]").addEventListener("click", () => step(-1));
-    controls.querySelector("[data-next]").addEventListener("click", () => step(1));
   }
 
   // ---------- Gallery lightbox ----------

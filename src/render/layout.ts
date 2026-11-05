@@ -1,4 +1,4 @@
-import { eventYear, type Content } from "../content/load.ts";
+import { eventLabel, eventYear, type Content } from "../content/load.ts";
 import type { Assets } from "../design/assets.ts";
 import { html, jsonLd, type Raw } from "./html.ts";
 import type { Images } from "./images.ts";
@@ -36,48 +36,82 @@ export async function heroPreload(ctx: Ctx, image: string): Promise<{ srcset: st
   return { srcset: (await ctx.images.responsive(image, {})).srcset, sizes: "100vw" };
 }
 
-/** Hero with background photo, top bar and skyline. `full` = start page height. */
+/** "Presenting Partner" + logo; label and logo share their left edge. */
+async function partnerBlock(ctx: Ctx, cls: string): Promise<Raw | ""> {
+  const p = ctx.content.sponsors.presenting;
+  if (!p) return "";
+  const { img } = await ctx.images.logo(p.logoWhite ?? p.logo, { alt: p.name, sizes: "200px", widths: [400] });
+  const attrs = p.url ? html` href="${await ctx.images.href(p.url)}" rel="noopener" target="_blank"` : html` href="/#sponsoren"`;
+  return html`<a class="partner ${cls}"${attrs}><span>Presenting Partner</span>${img}</a>`;
+}
+
+/** Hero with background photo and skyline. `full` = start page height. */
 export async function hero(ctx: Ctx, o: { image: string; full?: boolean; inner: Raw }): Promise<Raw> {
-  const { sponsors, site } = ctx.content;
-  const p = sponsors.presenting;
-  const partnerLogo = p ? await ctx.images.img(p.logoWhite ?? p.logo, { alt: p.name, sizes: "200px", widths: [400] }) : null;
   const bg = await ctx.images.img(o.image, { alt: "", sizes: "100vw", cls: "hero__bg", eager: true });
-  return html`<header class="hero${o.full ? "" : " hero--sub"}">
+  return html`<div class="hero${o.full ? "" : " hero--sub"}">
   ${bg}
-  <div class="topbar">
-    ${p && partnerLogo
-      ? html`<a class="topbar__partner" href="${p.url ?? "#sponsoren"}"${p.url ? html` rel="noopener" target="_blank"` : ""}><span>Presenting Partner</span>${partnerLogo}</a>`
-      : html`<span></span>`}
-    <div class="topbar__right">
-      <a class="topbar__ktv" href="${site.contact.ktv}" rel="noopener" target="_blank"><img src="${ctx.assets.svg["ktv-white"]}" alt="KTV Wil Handball" width="150" height="93"></a>
-      <button class="menu-button" type="button" data-nav-open aria-controls="nav" aria-expanded="false" hidden><span></span><span class="visually-hidden">Navigation öffnen</span></button>
-    </div>
-  </div>
   <div class="hero__content">${o.inner}</div>
   <img class="hero__skyline" src="${ctx.assets.svg["skyline-white"]}" alt="" width="1935" height="210" fetchpriority="high">
+</div>`;
+}
+
+/** "präsentiert von" + partner logo, next to the Hofchilbi logo (one lockup). */
+async function headerPartner(ctx: Ctx): Promise<Raw | ""> {
+  const p = ctx.content.sponsors.presenting;
+  if (!p) return "";
+  const { img } = await ctx.images.logo(p.logoWhite ?? p.logo, { alt: p.name, sizes: "160px", widths: [320] });
+  const attrs = p.url ? html` href="${await ctx.images.href(p.url)}" rel="noopener" target="_blank"` : html` href="/#sponsoren"`;
+  return html`<a class="header__partner"${attrs}><span>präsentiert von</span>${img}</a>`;
+}
+
+const navLinks = (current: string): Raw[] =>
+  NAV.map((n) => html`<li><a href="${n.href}"${n.href === current ? html` aria-current="page"` : ""}>${n.label}</a></li>`);
+
+/**
+ * Site header over the hero. Without JS it scrolls away with the page; site.js makes it sticky:
+ * see-through at the top, black once scrolled, hidden while scrolling down, back on scrolling up.
+ */
+async function siteHeader(ctx: Ctx, current: string): Promise<Raw> {
+  const { site } = ctx.content;
+  return html`<header class="header">
+  <div class="header__inner">
+    <div class="header__brand">
+      <a class="header__logo" href="/"${current === "/" ? html` aria-current="page"` : ""}><img src="${ctx.assets.svg["hofchilbi-logo-white"]}" alt="Hofchilbi Wil – zur Startseite" width="2652" height="1324"></a>
+      ${await headerPartner(ctx)}
+    </div>
+    <nav class="header__nav" aria-label="Hauptnavigation"><ul>${navLinks(current)}</ul></nav>
+    <a class="button button--sm header__cta" href="${await ctx.images.href(site.links.helfer)}"${/^https?:/.test(site.links.helfer) ? html` rel="noopener" target="_blank"` : ""}>Helfer werden</a>
+    <button class="menu-button" type="button" data-nav-open aria-controls="nav" aria-expanded="false" hidden><span></span><span class="visually-hidden">Navigation öffnen</span></button>
+  </div>
 </header>`;
 }
 
-function socials(ctx: Ctx, color: "black" | "white"): Raw {
+function socials(ctx: Ctx, color: "black" | "white", labels = false): Raw {
   const { social } = ctx.content.site;
   const items = [
     social.instagram && { href: social.instagram, label: "Instagram", icon: ctx.assets.svg[`instagram-${color}`], w: 29, h: 27 },
     social.facebook && { href: social.facebook, label: "Facebook", icon: ctx.assets.svg[`facebook-${color}`], w: 18, h: 33 },
   ].filter(Boolean) as { href: string; label: string; icon: string; w: number; h: number }[];
-  return html`<ul class="socials">${items.map(
-    (s) => html`<li><a href="${s.href}" rel="noopener" target="_blank"><img src="${s.icon}" alt="${s.label}" width="${s.w}" height="${s.h}"></a></li>`,
+  return html`<ul class="socials${labels ? " socials--labels" : ""}">${items.map(
+    (s) =>
+      html`<li><a href="${s.href}" rel="noopener" target="_blank"><img src="${s.icon}" alt="${labels ? "" : s.label}" width="${s.w}" height="${s.h}">${labels ? html`<span>${s.label}</span>` : ""}</a></li>`,
   )}</ul>`;
 }
 
-function navOverlay(ctx: Ctx, current: string): Raw {
+/** Mobile navigation: full-screen overlay. */
+async function navOverlay(ctx: Ctx, current: string): Promise<Raw> {
+  const { site } = ctx.content;
+  const goenner = site.links.goenner;
   return html`<nav id="nav" class="nav" aria-label="Hauptnavigation" hidden>
   <div class="nav__head">
-    <a href="${ctx.content.site.contact.ktv}" rel="noopener" target="_blank"><img src="${ctx.assets.svg["ktv-black"]}" alt="KTV Wil Handball" width="150" height="100"></a>
+    <a href="/"><img src="${ctx.assets.svg["hofchilbi-logo"]}" alt="Hofchilbi Wil – zur Startseite" width="2652" height="1324"></a>
     <button class="menu-button menu-button--close" type="button" data-nav-close><span></span><span class="visually-hidden">Navigation schliessen</span></button>
   </div>
-  <ul class="nav__links">${NAV.map(
-    (n) => html`<li><a href="${n.href}"${n.href === current ? html` aria-current="page"` : ""}>${n.label}</a></li>`,
-  )}</ul>
+  <ul class="nav__links">${navLinks(current)}</ul>
+  <div class="nav__cta">
+    <a class="button button--dark" href="${await ctx.images.href(site.links.helfer)}"${/^https?:/.test(site.links.helfer) ? html` rel="noopener" target="_blank"` : ""}>Helfer werden</a>
+    <a class="button button--dark" href="${await ctx.images.href(goenner)}"${/^https?:/.test(goenner) || goenner.endsWith(".pdf") ? html` rel="noopener" target="_blank"` : ""}>Gönner werden</a>
+  </div>
   ${socials(ctx, "black")}
   <img class="nav__skyline" src="${ctx.assets.svg["skyline-outline"]}" alt="" width="1935" height="210">
 </nav>`;
@@ -91,31 +125,55 @@ function impressumLink(ctx: Ctx): Raw | "" {
   return "";
 }
 
-function footer(ctx: Ctx, current: string): Raw {
+async function footer(ctx: Ctx, current: string): Promise<Raw> {
   const { site } = ctx.content;
   const year = eventYear(site);
+  const label = site.event.label ?? eventLabel(site.event.days);
   return html`<footer class="footer">
   <div class="footer__inner">
-    <div class="footer__brand">
-      <span>Hofchilbi Wil ${year} ©</span>
-      <a href="${site.contact.ktv}" rel="noopener" target="_blank"><img src="${ctx.assets.svg["ktv-white"]}" alt="KTV Wil Handball" width="140" height="87" loading="lazy"></a>
+    <div class="footer__top">
+      <a class="footer__logo" href="/"><img src="${ctx.assets.svg["hofchilbi-logo-white"]}" alt="Hofchilbi Wil – zur Startseite" width="2652" height="1324" loading="lazy"></a>
+      <div class="footer__event">
+        <p class="footer__date">${label}</p>
+        ${site.event.location ? html`<p class="footer__place">${site.event.location}</p>` : ""}
+      </div>
     </div>
-    <div class="footer__right">
-      <nav aria-label="Seiten"><ul class="footer__nav">${NAV.map(
-        (n) => html`<li><a href="${n.href}"${n.href === current ? html` aria-current="page"` : ""}>${n.label}</a></li>`,
-      )}</ul></nav>
-      <ul class="footer__links">
-        <li><a href="mailto:${site.contact.email}">${site.contact.email}</a></li>
+    <div class="footer__cols">
+      <nav aria-label="Seiten">
+        <p class="footer__h">Seiten</p>
+        <ul class="footer__list">${navLinks(current)}</ul>
+      </nav>
+      <div>
+        <p class="footer__h">Kontakt</p>
+        <ul class="footer__list">
+          <li><a href="mailto:${site.contact.email}">${site.contact.email}</a></li>
+          <li><a href="/kontakt">Team &amp; Kontakt</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="footer__h">Folge uns</p>
+        ${socials(ctx, "white", true)}
+      </div>
+      <div class="footer__orgs">
+        <div>
+          <p class="footer__h">Ein Anlass von</p>
+          <a class="footer__ktv" href="${site.contact.ktv}" rel="noopener" target="_blank"><img src="${ctx.assets.svg["ktv-white"]}" alt="KTV Wil Handball" width="150" height="93" loading="lazy"></a>
+        </div>
+        ${await partnerBlock(ctx, "footer__partner")}
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <span>© ${year} Hofchilbi Wil · KTV Wil Handball</span>
+      <ul class="footer__legal">
         ${impressumLink(ctx)}
         <li><a href="${site.contact.datenschutz}" rel="noopener" target="_blank">Datenschutz</a></li>
       </ul>
-      ${socials(ctx, "white")}
     </div>
   </div>
 </footer>`;
 }
 
-export function layout(ctx: Ctx, page: PageDef): string {
+export async function layout(ctx: Ctx, page: PageDef): Promise<string> {
   const { site } = ctx.content;
   const url = ctx.siteUrl + page.path;
   const fullTitle = page.path === "/" ? page.title : `${page.title} | ${site.title}`;
@@ -150,12 +208,13 @@ ${page.jsonLd ? html`<script type="application/ld+json">${jsonLd(page.jsonLd)}</
 </head>
 <body>
 <a class="skip" href="#main">Zum Inhalt</a>
+${await siteHeader(ctx, page.path)}
 ${page.hero}
-${navOverlay(ctx, page.path)}
+${await navOverlay(ctx, page.path)}
 <main id="main">
 ${page.main}
 </main>
-${footer(ctx, page.path)}
+${await footer(ctx, page.path)}
 </body>
 </html>
 `.value

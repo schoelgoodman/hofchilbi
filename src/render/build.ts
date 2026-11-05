@@ -94,7 +94,7 @@ async function buildOnce(): Promise<void> {
       Object.entries(content.pages).flatMap(([name, p]) => (p.redirect ? [[`/${name}`, p.redirect]] : [])),
     );
     await writeFile(path.join(dir, "_redirects.json"), JSON.stringify(redirects));
-    for (const [file, page] of pages) await writeFile(path.join(dir, file), layout(ctx, page));
+    for (const [file, page] of pages) await writeFile(path.join(dir, file), await layout(ctx, page));
     await writeFile(path.join(dir, "sitemap.xml"), sitemap(ctx.siteUrl, pages.filter(([, p]) => !p.noindex).map(([, p]) => p.path), await contentModified(cDir)));
   });
   await images.pruneCache();

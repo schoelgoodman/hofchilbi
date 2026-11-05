@@ -26,6 +26,7 @@ z.config({
  *   site.yaml        event dates, hero, links, contact, SEO defaults
  *   sponsors.yaml    presenting partner, sponsor tiers, Gönner
  *   anzapfer.yaml    all Anzapfer by year (the newest is shown on Start)
+ *   timeline.yaml    milestones on the page Geschichte (optional file)
  *   team.yaml        group photo and team members
  *   galleries.yaml   photo galleries by year
  *   news/*.md        news posts (frontmatter + Markdown)
@@ -109,14 +110,33 @@ export type Sponsors = z.infer<typeof SponsorsSchema>;
 
 export const AnzapferSchema = z.object({
   list: z.array(
-    z.object({
-      year: z.number().int().min(1900).max(2200),
-      name: z.string().min(1),
-      photo: OptionalMedia,
-    }),
+    z
+      .object({
+        year: z.number().int().min(1900).max(2200),
+        name: z.string().trim().optional(),
+        /** Instead of a name, e.g. "Keine Hofchilbi (Corona)". */
+        note: z.string().trim().optional(),
+        photo: OptionalMedia,
+      })
+      .refine((a) => a.name || a.note, { message: "Name oder Hinweis eingeben", path: ["name"] }),
   ),
 });
 export type Anzapfer = z.infer<typeof AnzapferSchema>;
+
+/** Milestones on the page Geschichte. `year` is free text ("754", "Heute"). */
+export const TimelineSchema = z.object({
+  entries: z
+    .array(
+      z.object({
+        year: z.string().trim().min(1).max(12, "Höchstens 12 Zeichen"),
+        text: z.string().trim().min(1).max(400, "Höchstens 400 Zeichen"),
+        /** Shown as a large highlighted fact instead of a normal entry. */
+        highlight: z.boolean().default(false),
+      }),
+    )
+    .default([]),
+});
+export type Timeline = z.infer<typeof TimelineSchema>;
 
 export const TeamSchema = z.object({
   groupPhoto: OptionalMedia,
@@ -141,13 +161,22 @@ export const GalleriesSchema = z.object({
 });
 export type Galleries = z.infer<typeof GalleriesSchema>;
 
-export const NewsFrontmatter = z.object({
-  title: z.string().min(1),
-  date: IsoDate,
-  image: OptionalMedia,
-  imageAlt: z.string().optional(),
-  draft: z.boolean().default(false),
-});
+/** Button target in a news item: like Link, or a page of this site ("/geschichte", "/#sponsoren"). */
+const CtaLink = z.union([Link, z.string().regex(/^\/(?!\/)[A-Za-z0-9/#_-]*$/, "Webadresse (https://…), Seite (/…) oder Datei")]);
+
+export const NewsFrontmatter = z
+  .object({
+    title: z.string().min(1),
+    date: IsoDate,
+    image: OptionalMedia,
+    imageAlt: z.string().optional(),
+    /** Optional call-to-action button below the text. */
+    ctaLabel: z.string().trim().max(40, "Höchstens 40 Zeichen").optional(),
+    ctaUrl: CtaLink.optional(),
+    draft: z.boolean().default(false),
+  })
+  .refine((n) => !n.ctaLabel || n.ctaUrl, { message: "Wohin soll der Button führen?", path: ["ctaUrl"] })
+  .refine((n) => !n.ctaUrl || n.ctaLabel, { message: "Bitte einen Button-Text eingeben.", path: ["ctaLabel"] });
 export type NewsMeta = z.infer<typeof NewsFrontmatter>;
 
 export const PageFrontmatter = z.object({

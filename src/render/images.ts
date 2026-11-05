@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { copyFile, link, mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { copyFile, link, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { ContentError } from "../content/load.ts";
@@ -51,6 +51,24 @@ async function contentHash(file: string): Promise<string> {
     hashMemo.set(memoKey, h);
   }
   return h;
+}
+
+/**
+ * True for a white/very light logo on a transparent background: it would vanish on a white tile.
+ * Average luminance of the visible pixels, on a small thumbnail.
+ */
+async function isLightLogo(file: string): Promise<boolean> {
+  const { data, info } = await sharp(file).resize(64, 64, { fit: "inside" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < data.length; i += info.channels) {
+    if (data[i + 3]! < 128) continue;
+    sum += 0.2126 * data[i]! + 0.7152 * data[i + 1]! + 0.0722 * data[i + 2]!;
+    n++;
+  }
+  // Mostly transparent with light content. A logo that covers most of its area brings its own
+  // background (e.g. a white card) and stays on white.
+  return n > 0 && n < (data.length / info.channels) * 0.6 && sum / n > 200;
 }
 
 export class Images {
@@ -120,45 +138,53 @@ export class Images {
   }
 
   private masters = new Map<string, Promise<string>>();
+  private trimmedSvgs = new Map<string, Promise<{ src: string; width: number; height: number } | null>>();
+  private trimmedMeta = new Map<string, Promise<Meta & { light: boolean }>>();
 
   /**
    * Each original is decoded ONCE into a master of at most 2000 px (rotated, cached on disk);
    * all sizes are made from that. Decoding a 24-megapixel original six times in parallel took
    * ~3 GB and got the container killed (1 GB limit); from masters the peak stays far below.
    */
-  private master(rel: string): Promise<string> {
-    let m = this.masters.get(rel);
+  private master(rel: string, trim = false): Promise<string> {
+    const memo = trim ? `${rel}|trim` : rel;
+    let m = this.masters.get(memo);
     if (!m) {
       m = (async () => {
         const { hasAlpha, width, height, format } = await this.dimensions(rel);
         const heavy = width * height > 12e6 && format !== "jpeg";
-        const name = `master-${await this.key(rel, "m1")}.${hasAlpha ? "png" : "jpg"}`;
+        const name = `master-${await this.key(rel, trim ? "m1t" : "m1")}.${hasAlpha ? "png" : "jpg"}`;
         const file = path.join(this.cacheDir, name);
         try {
           await stat(file);
         } catch {
           await this.limit(async () => {
             await mkdir(this.cacheDir, { recursive: true });
-            const img = sharp(this.src(rel), { failOn: "error", sequentialRead: true })
-              .rotate()
-              .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true });
+            const encode = (withTrim: boolean) => {
+              let img = sharp(this.src(rel), { failOn: "error", sequentialRead: true }).rotate();
+              // Logos: cut away empty margins (transparent or the corner colour, usually white).
+              if (withTrim) img = img.trim({ threshold: 20 });
+              img = img.resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true });
+              return (hasAlpha ? img.png({ compressionLevel: 3 }) : img.jpeg({ quality: 92, chromaSubsampling: "4:4:4" })).toFile(tmp);
+            };
             const tmp = `${file}.${process.pid}.tmp`;
-            await (hasAlpha ? img.png({ compressionLevel: 3 }) : img.jpeg({ quality: 92, chromaSubsampling: "4:4:4" })).toFile(tmp);
+            // A blank image has nothing to trim to; keep it as it is.
+            await encode(trim).catch((e) => (trim ? encode(false) : Promise.reject(e)));
             await rename(tmp, file);
           }, heavy ? PARALLEL : 1);
         }
         this.used.add(name);
         return file;
       })();
-      this.masters.set(rel, m);
+      this.masters.set(memo, m);
     }
     return m;
   }
 
   /** Encodes one variant into the cache (once) and links it into the build. */
-  private async variant(rel: string, width: number, aspect: number | undefined, format: "webp" | "jpeg"): Promise<string> {
+  private async variant(rel: string, width: number, aspect: number | undefined, format: "webp" | "jpeg", trim = false): Promise<string> {
     const base = path.basename(rel).replace(/\.[^.]+$/, "").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 40);
-    const name = `${base}-${await this.key(rel, `${width}|${aspect ?? ""}|${format}|q3`)}-${width}.${format === "jpeg" ? "jpg" : format}`;
+    const name = `${base}-${await this.key(rel, `${width}|${aspect ?? ""}|${format}|q3${trim ? "|t" : ""}`)}-${width}.${format === "jpeg" ? "jpg" : format}`;
     const cached = path.join(this.cacheDir, name);
     let job = this.jobs.get(name);
     if (!job) {
@@ -167,7 +193,7 @@ export class Images {
           await stat(cached);
         } catch {
           // Master first, outside the slot: a job holding a slot must never wait for another slot.
-          const master = await this.master(rel);
+          const master = await this.master(rel, trim);
           await this.limit(async () => {
             await mkdir(this.cacheDir, { recursive: true });
             let img = sharp(master, { failOn: "error", sequentialRead: true });
@@ -246,6 +272,77 @@ export class Images {
     }
     const r = await this.responsive(rel, o);
     return html`<img src="${r.src}" srcset="${r.srcset}" sizes="${o.sizes}" width="${r.width}" height="${r.height}" alt="${o.alt}" class="${o.cls}" loading="${loading}" decoding="async"${fetchpriority ? html` fetchpriority="high"` : ""}>`;
+  }
+
+  /**
+   * Logo <img> with empty margins trimmed away, plus its aspect ratio (w/h) so logos of different
+   * shapes can be sized to the same visual weight. SVGs are used as they are.
+   */
+  async logo(rel: string, o: Pick<ImageOpts, "alt" | "sizes" | "widths">): Promise<{ img: Raw; ratio: number; light: boolean }> {
+    if (!RASTER.test(rel)) {
+      const t = await this.trimmedSvg(rel);
+      if (!t) {
+        const size = await this.svgSize(rel);
+        return { img: await this.img(rel, o), ratio: size ? size.width / size.height : 2, light: false };
+      }
+      const img = html`<img src="${t.src}" width="${t.width}" height="${t.height}" alt="${o.alt}" loading="lazy" decoding="async">`;
+      return { img, ratio: t.width / t.height, light: false };
+    }
+    let meta = this.trimmedMeta.get(rel);
+    if (!meta) {
+      meta = this.master(rel, true).then(async (file) => {
+        const md = await sharp(file).metadata();
+        return { width: md.width ?? 1, height: md.height ?? 1, light: await isLightLogo(file) };
+      });
+      this.trimmedMeta.set(rel, meta);
+    }
+    const { width: mw, height: mh, light } = await meta;
+    const wanted = o.widths ?? [200, 400, 600];
+    const top = Math.min(mw, Math.max(...wanted));
+    const widths = [...new Set([...wanted.filter((w) => w < top), top])].sort((a, b) => a - b);
+    const urls = await Promise.all(widths.map((w) => this.variant(rel, w, undefined, "webp", true)));
+    const w = widths.at(-1)!;
+    const img = html`<img src="${urls[Math.min(1, urls.length - 1)]!}" srcset="${urls.map((u, i) => `${u} ${widths[i]}w`).join(", ")}" sizes="${o.sizes}" width="${w}" height="${Math.round((w * mh) / mw)}" alt="${o.alt}" loading="lazy" decoding="async">`;
+    return { img, ratio: mw / mh, light };
+  }
+
+  /**
+   * SVG logo with its viewBox shrunk to the drawn content, so empty margins in the file don't
+   * shift or shrink the logo. Measured by rendering it once; null if it can't be measured.
+   */
+  private trimmedSvg(rel: string): Promise<{ src: string; width: number; height: number } | null> {
+    let t = this.trimmedSvgs.get(rel);
+    if (!t) {
+      t = (async () => {
+        try {
+          const text = await readFile(this.src(rel), "utf8");
+          const tag = /<svg\b[^>]*>/i.exec(text)?.[0];
+          const vb = tag && /viewBox="\s*([-\d.]+)[\s,]+([-\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*"/i.exec(tag);
+          if (!tag || !vb) return null;
+          const [x, y, w, h] = vb.slice(1).map(Number) as [number, number, number, number];
+          const density = Math.min(600, Math.max(72, (72 * 1500) / w));
+          const rendered = await sharp(Buffer.from(text), { density }).metadata();
+          const { info } = await sharp(Buffer.from(text), { density }).trim({ threshold: 10 }).toBuffer({ resolveWithObject: true });
+          const scale = w / (rendered.width ?? 1);
+          const nx = x - (info.trimOffsetLeft ?? 0) * scale;
+          const ny = y - (info.trimOffsetTop ?? 0) * scale;
+          const nw = info.width * scale;
+          const nh = info.height * scale;
+          const r = (n: number) => Math.round(n * 100) / 100;
+          const newTag = tag
+            .replace(/\s(width|height)="[^"]*"/gi, "")
+            .replace(/viewBox="[^"]*"/i, `viewBox="${r(nx)} ${r(ny)} ${r(nw)} ${r(nh)}" width="${r(nw)}" height="${r(nh)}"`);
+          const name = `_img/${path.basename(rel, ".svg").replace(/[^A-Za-z0-9-]+/g, "-").slice(0, 40)}-${await this.key(rel, "svgtrim1")}.svg`;
+          await mkdir(path.join(this.outDir, "_img"), { recursive: true });
+          await writeFile(path.join(this.outDir, name), text.replace(tag, newTag));
+          return { src: "/" + name, width: Math.round(nw), height: Math.round(nh) };
+        } catch {
+          return null;
+        }
+      })();
+      this.trimmedSvgs.set(rel, t);
+    }
+    return t;
   }
 
   /** The variants of a raster image (also used to preload the hero image in <head>). */
