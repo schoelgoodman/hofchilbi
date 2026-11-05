@@ -6,6 +6,10 @@ import { ContentError } from "../content/load.ts";
 import { html, type Raw } from "./html.ts";
 
 sharp.cache(false);
+// Memory: the container has 1 GB. Few parallel encodes with few threads each keep the peak low;
+// a full re-encode of all galleries is a rare event, so speed matters less than not crashing.
+const PARALLEL = Number(process.env.IMG_PARALLEL ?? 2);
+sharp.concurrency(Number(process.env.IMG_THREADS ?? 2));
 
 /**
  * Turns uploaded files (content/media/...) into web assets:
@@ -29,6 +33,8 @@ export interface ImageOpts {
 interface Meta {
   width: number;
   height: number;
+  hasAlpha?: boolean;
+  format?: string;
 }
 
 const DEFAULT_WIDTHS = [480, 720, 960, 1280, 1600, 2000];
@@ -55,14 +61,19 @@ export class Images {
     return path.join(this.contentDir, rel);
   }
 
-  private async limit<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.running >= 4) await new Promise<void>((r) => this.waiting.push(r));
-    this.running++;
+  /**
+   * Weighted slots: a normal encode takes 1 of PARALLEL slots; decoding a huge non-JPEG original
+   * (AVIF/PNG/WebP can't shrink while decoding: a 27 MP AVIF needs ~700 MB) takes all of them.
+   */
+  private async limit<T>(fn: () => Promise<T>, weight = 1): Promise<T> {
+    const need = Math.min(weight, PARALLEL);
+    while (this.running + need > PARALLEL) await new Promise<void>((r) => this.waiting.push(r));
+    this.running += need;
     try {
       return await fn();
     } finally {
-      this.running--;
-      this.waiting.shift()?.();
+      this.running -= need;
+      for (const wake of this.waiting.splice(0)) wake();
     }
   }
 
@@ -83,9 +94,46 @@ export class Images {
           const rotated = (md.orientation ?? 1) >= 5;
           const w = md.width ?? 0;
           const h = md.height ?? 0;
-          return rotated ? { width: h, height: w } : { width: w, height: h };
+          const extra = { hasAlpha: md.hasAlpha, format: md.format };
+          return rotated ? { width: h, height: w, ...extra } : { width: w, height: h, ...extra };
         });
       this.meta.set(rel, m);
+    }
+    return m;
+  }
+
+  private masters = new Map<string, Promise<string>>();
+
+  /**
+   * Each original is decoded ONCE into a master of at most 2000 px (rotated, cached on disk);
+   * all sizes are made from that. Decoding a 24-megapixel original six times in parallel took
+   * ~3 GB and got the container killed (1 GB limit); from masters the peak stays far below.
+   */
+  private master(rel: string): Promise<string> {
+    let m = this.masters.get(rel);
+    if (!m) {
+      m = (async () => {
+        const { hasAlpha, width, height, format } = await this.dimensions(rel);
+        const heavy = width * height > 12e6 && format !== "jpeg";
+        const name = `master-${await this.key(rel, "m1")}.${hasAlpha ? "png" : "jpg"}`;
+        const file = path.join(this.cacheDir, name);
+        try {
+          await stat(file);
+        } catch {
+          await this.limit(async () => {
+            await mkdir(this.cacheDir, { recursive: true });
+            const img = sharp(this.src(rel), { failOn: "error", sequentialRead: true })
+              .rotate()
+              .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true });
+            const tmp = `${file}.${process.pid}.tmp`;
+            await (hasAlpha ? img.png({ compressionLevel: 3 }) : img.jpeg({ quality: 92, chromaSubsampling: "4:4:4" })).toFile(tmp);
+            await rename(tmp, file);
+          }, heavy ? PARALLEL : 1);
+        }
+        this.used.add(name);
+        return file;
+      })();
+      this.masters.set(rel, m);
     }
     return m;
   }
@@ -101,9 +149,11 @@ export class Images {
         try {
           await stat(cached);
         } catch {
+          // Master first, outside the slot: a job holding a slot must never wait for another slot.
+          const master = await this.master(rel);
           await this.limit(async () => {
             await mkdir(this.cacheDir, { recursive: true });
-            let img = sharp(this.src(rel), { failOn: "error" }).rotate();
+            let img = sharp(master, { failOn: "error", sequentialRead: true });
             img = aspect
               ? img.resize({ width, height: Math.round(width / aspect), fit: "cover", position: "attention" })
               : img.resize({ width, withoutEnlargement: true });

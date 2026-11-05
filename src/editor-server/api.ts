@@ -204,7 +204,8 @@ export class EditorApi {
       data = await readFile(cached);
     } catch {
       try {
-        data = await sharp(file, { density: 150 }).rotate().resize({ width: w, height: w, fit: "inside", withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+        // Same queue as uploads: a huge original (e.g. 27 MP AVIF) can take ~700 MB to decode.
+        data = await this.oneAtATime(() => sharp(file, { density: 150 }).rotate().resize({ width: w, height: w, fit: "inside", withoutEnlargement: true }).webp({ quality: 75 }).toBuffer());
       } catch {
         throw new HttpError(415, "Keine Vorschau möglich");
       }

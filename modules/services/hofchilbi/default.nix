@@ -71,7 +71,8 @@
             "--cap-drop=ALL"
             "--security-opt=no-new-privileges"
             "--pids-limit=256"
-            "--memory=1g"
+            # 1.5 GB: a full re-encode of old, huge originals (e.g. a 27 MP AVIF) needs ~1 GB.
+            "--memory=1536m"
           ];
         };
       };
