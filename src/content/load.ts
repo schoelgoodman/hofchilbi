@@ -26,6 +26,7 @@ export interface NewsItem extends NewsMeta {
 export interface Page {
   title: string;
   description?: string;
+  redirect?: string;
   body: string;
 }
 

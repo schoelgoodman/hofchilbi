@@ -83,6 +83,14 @@ function navOverlay(ctx: Ctx, current: string): Raw {
 </nav>`;
 }
 
+/** Footer link: own page, external page (redirect), or nothing while the page is empty. */
+function impressumLink(ctx: Ctx): Raw | "" {
+  const p = ctx.content.pages.impressum;
+  if (p?.redirect) return html`<li><a href="${p.redirect}" rel="noopener" target="_blank">${p.title || "Impressum"}</a></li>`;
+  if (p?.body.trim()) return html`<li><a href="/impressum">${p.title || "Impressum"}</a></li>`;
+  return "";
+}
+
 function footer(ctx: Ctx, current: string): Raw {
   const { site } = ctx.content;
   const year = eventYear(site);
@@ -98,6 +106,7 @@ function footer(ctx: Ctx, current: string): Raw {
       )}</ul></nav>
       <ul class="footer__links">
         <li><a href="mailto:${site.contact.email}">${site.contact.email}</a></li>
+        ${impressumLink(ctx)}
         <li><a href="${site.contact.datenschutz}" rel="noopener" target="_blank">Datenschutz</a></li>
       </ul>
       ${socials(ctx, "white")}

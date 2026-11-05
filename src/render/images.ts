@@ -40,6 +40,19 @@ interface Meta {
 const DEFAULT_WIDTHS = [480, 720, 960, 1280, 1600, 2000];
 const RASTER = /\.(jpe?g|png|webp|avif|gif|tiff?)$/i;
 
+const hashMemo = new Map<string, Promise<string>>();
+
+async function contentHash(file: string): Promise<string> {
+  const s = await stat(file);
+  const memoKey = `${file}|${s.size}|${s.mtimeMs}`;
+  let h = hashMemo.get(memoKey);
+  if (!h) {
+    h = readFile(file).then((buf) => createHash("sha1").update(buf).digest("hex"));
+    hashMemo.set(memoKey, h);
+  }
+  return h;
+}
+
 export class Images {
   private meta = new Map<string, Promise<Meta>>();
   private jobs = new Map<string, Promise<void>>();
@@ -77,9 +90,13 @@ export class Images {
     }
   }
 
+  /**
+   * Cache key from the file's CONTENT, not its mtime: copying or restoring content (push-content,
+   * «Verlauf») changes mtimes and must not trigger a full re-encode. Hashes are remembered per
+   * size+mtime for the life of the process, so warm rebuilds don't re-read the files.
+   */
   private async key(rel: string, extra: string): Promise<string> {
-    const s = await stat(this.src(rel));
-    return createHash("sha1").update(`${rel}|${s.size}|${s.mtimeMs}|${extra}`).digest("hex").slice(0, 10);
+    return createHash("sha1").update(`${await contentHash(this.src(rel))}|${extra}`).digest("hex").slice(0, 10);
   }
 
   private dimensions(rel: string): Promise<Meta> {

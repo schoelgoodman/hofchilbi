@@ -5,7 +5,7 @@ import { writeAssets } from "../design/assets.ts";
 import { contentDir, siteDir } from "../paths.ts";
 import { Images } from "./images.ts";
 import { layout, type Ctx, type PageDef } from "./layout.ts";
-import { geschichtePage, impressionenPage, kontaktPage, notFoundPage, startPage } from "./pages.ts";
+import { geschichtePage, impressionenPage, impressumPage, kontaktPage, notFoundPage, startPage } from "./pages.ts";
 import { publishBuild } from "./publish.ts";
 
 export function siteUrl(): string {
@@ -87,6 +87,13 @@ async function buildOnce(): Promise<void> {
       ["kontakt.html", await kontaktPage(ctx)],
       ["404.html", await notFoundPage(ctx)],
     ];
+    const impressum = await impressumPage(ctx);
+    if (impressum) pages.push(["impressum.html", impressum]);
+    // Pages that point elsewhere: the server answers them with a 301 (server/index.ts).
+    const redirects = Object.fromEntries(
+      Object.entries(content.pages).flatMap(([name, p]) => (p.redirect ? [[`/${name}`, p.redirect]] : [])),
+    );
+    await writeFile(path.join(dir, "_redirects.json"), JSON.stringify(redirects));
     for (const [file, page] of pages) await writeFile(path.join(dir, file), layout(ctx, page));
     await writeFile(path.join(dir, "sitemap.xml"), sitemap(ctx.siteUrl, pages.filter(([, p]) => !p.noindex).map(([, p]) => p.path), await contentModified(cDir)));
   });

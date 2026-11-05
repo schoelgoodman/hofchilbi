@@ -29,7 +29,7 @@ export const DOCS = {
 } as const;
 export type DocName = keyof typeof DOCS;
 
-export const PAGES = ["geschichte"] as const;
+export const PAGES = ["geschichte", "impressum"] as const;
 export type PageName = (typeof PAGES)[number];
 
 export class HttpError extends Error {

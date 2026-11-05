@@ -41,6 +41,22 @@ function baseHeaders(res: http.ServerResponse, role: Role): void {
   else if (PRODUCTION) res.setHeader("Content-Security-Policy", EDITOR_CSP);
 }
 
+/** Redirects of the live build (site/current/_redirects.json), cached per build. */
+let redirectCache: { build: string | null; map: Record<string, string> } = { build: "", map: {} };
+async function redirects(): Promise<Record<string, string>> {
+  const build = await liveBuild(siteDir());
+  if (build !== redirectCache.build) {
+    let map: Record<string, string> = {};
+    try {
+      map = JSON.parse(await readFile(path.join(currentSiteDir(), "_redirects.json"), "utf8"));
+    } catch {
+      // no redirects in this build
+    }
+    redirectCache = { build, map };
+  }
+  return redirectCache.map;
+}
+
 /** Host as the visitor sent it (nginx forwards the original Host). */
 function isCanonicalHost(req: http.IncomingMessage): boolean {
   const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(",")[0]!.trim().toLowerCase();
@@ -77,7 +93,12 @@ async function handleSite(req: http.IncomingMessage, res: http.ServerResponse): 
     res.writeHead(301, { Location: "/" + p.replace(/^[/\\]+|\/+$/g, "") });
     return void res.end();
   }
-  if (await serveStatic(req, res, currentSiteDir())) return;
+  const target = (await redirects())[p];
+  if (target) {
+    res.writeHead(301, { Location: target, "Cache-Control": "no-cache" });
+    return void res.end();
+  }
+  if (p !== "/_redirects.json" && (await serveStatic(req, res, currentSiteDir()))) return;
   try {
     const html = await readFile(path.join(currentSiteDir(), "404.html"), "utf8");
     send(res, 404, html, "text/html; charset=utf-8");

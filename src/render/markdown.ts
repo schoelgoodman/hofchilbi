@@ -6,7 +6,9 @@ import { raw, type Raw } from "./html.ts";
  * markdown-it's validateLink drops javascript:/vbscript:/data: links, so editor text can never
  * inject script. External links open in a new tab.
  */
-const md = new MarkdownIt({ html: false, linkify: true, typographer: false, breaks: true });
+// breaks: false = same as Milkdown: a single newline is a space, a hard break (Shift+Enter, saved
+// as "\\" at line end) is a line break. What editors see is what the site shows.
+const md = new MarkdownIt({ html: false, linkify: true, typographer: false, breaks: false });
 
 const defaultLink = md.renderer.rules.link_open ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
 md.renderer.rules.link_open = (tokens, idx, options, env, self) => {

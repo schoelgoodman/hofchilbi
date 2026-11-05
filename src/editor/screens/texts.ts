@@ -157,7 +157,13 @@ function fmt(date: string): string {
 }
 
 // ---------------------------------------------------------------- Geschichte
-export function pageScreen(ctx: Ctx, name: string, title: string, intro: string): HTMLElement {
+export function pageScreen(
+  ctx: Ctx,
+  name: string,
+  title: string,
+  intro: string,
+  opts: { template?: string; extraFields?: (f: Form) => (HTMLElement | null)[] } = {},
+): HTMLElement {
   const page = ctx.state.pages[name] ?? { meta: { title }, body: "", version: "" };
   let base = page.version;
   return h(
@@ -168,19 +174,59 @@ export function pageScreen(ctx: Ctx, name: string, title: string, intro: string)
     textEditor(
       ctx,
       { title, ...page.meta },
-      page.body,
+      page.body || opts.template || "",
       (f) => [
         text(f, "meta.title", "Titel der Seite"),
         text(f, "meta.description", "Kurzbeschreibung für Google (optional)", { multiline: true, hint: "Leer: die ersten Sätze des Textes werden verwendet." }),
+        ...(opts.extraFields?.(f) ?? []),
       ],
       async (meta, body) => {
         const r = await api.putPage(name, meta, body, base);
         base = r.version;
         ctx.state.pages[name] = { meta: structuredClone(meta) as never, body, version: base };
         toast("Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
-      announceSaved();
+        announceSaved();
       },
     ),
+  );
+}
+
+// Lines inside a block end with "\\" = hard line break (Shift+Enter in the editor).
+const IMPRESSUM_TEMPLATE = [
+  "**Veranstalter**\\",
+  "KTV Wil Handball\\",
+  "[Strasse Nr.]\\",
+  "9500 Wil SG",
+  "",
+  "**Kontakt**\\",
+  "hofchilbi@ktvwil-handball.ch",
+  "",
+  "**Verantwortlich für den Inhalt**\\",
+  "[Vorname Name, Funktion]",
+  "",
+  "**Haftung für Links**\\",
+  "Für den Inhalt verlinkter Websites sind ausschliesslich deren Betreiber verantwortlich.",
+  "",
+  "**Urheberrechte**\\",
+  "Texte und Bilder auf dieser Website gehören dem KTV Wil Handball oder den genannten Urheberinnen und Urhebern. Eine Verwendung ist nur mit Erlaubnis gestattet.",
+].join("\n");
+
+export function impressumScreen(ctx: Ctx): HTMLElement {
+  return pageScreen(
+    ctx,
+    "impressum",
+    "Impressum",
+    "Wer hinter der Website steht. Solange der Text leer ist, gibt es keine Impressum-Seite. Die Vorlage unten bitte vervollständigen ([…] ersetzen) und speichern.",
+    {
+      template: IMPRESSUM_TEMPLATE,
+      extraFields: (f) => [
+        text(f, "meta.redirect", "Stattdessen weiterleiten zu (optional)", {
+          type: "url",
+          placeholder: "https://ktvwil-handball.ch/…",
+          hint: "Ist hier eine Adresse eingetragen, zeigt die Website keine eigene Seite: Der Link im Fuss und /impressum führen direkt dorthin. Leer lassen für die eigene Seite.",
+        }),
+      ],
+    },
   );
 }
 

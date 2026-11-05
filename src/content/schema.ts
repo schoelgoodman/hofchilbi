@@ -153,4 +153,6 @@ export type NewsMeta = z.infer<typeof NewsFrontmatter>;
 export const PageFrontmatter = z.object({
   title: z.string().min(1),
   description: z.string().max(200).optional(),
+  /** If set, the page is not rendered: /<page> redirects here (e.g. the KTV Impressum). */
+  redirect: z.url({ protocol: /^https?$/ }).optional(),
 });
