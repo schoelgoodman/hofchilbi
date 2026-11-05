@@ -91,6 +91,24 @@ If the log says `content invalid`: the old site stays online. Send the operator 
 Do **not** replace it. Stop and ask the operator: the editors' changes would be lost.
 `content.incoming` stays untouched until the operator decides.
 
+## 4b. Immich galleries (only when the operator asks)
+
+1. The operator creates the API key in Immich (Account settings → API keys, permissions
+   `album.read`, `asset.read`, `asset.view`) and enters it in Neo: **Services → Hofchilbi
+   Redaktion → immichApiKey**. Never ask for the key in chat or write it into a file.
+2. Save → **Activate**.
+3. Verify:
+
+```sh
+docker exec hofchilbi-redaktion node -e "fetch('http://immich-server:2283/api/server/ping').then(r=>r.text()).then(console.log)"   # {"res":"pong"}
+sleep 60; docker logs hofchilbi-redaktion 2>&1 | grep -i immich     # no "Immich sync:" errors
+ls <appdata>/hofchilbi/content/media/immich/                          # one folder per year
+docker logs hofchilbi --tail 5                                        # "Site: built in …" (first build with all photos can take several minutes)
+```
+
+Then `https://hofchilbi.<domain>/impressionen` shows one card per year. Report the years and photo
+counts (editor → Galerien) to the operator.
+
 ## 5. Go-live (only on explicit instruction)
 
 When the operator confirms DNS for `hofchilbi.ch` points to this server:

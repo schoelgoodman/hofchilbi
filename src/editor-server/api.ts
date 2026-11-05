@@ -8,6 +8,7 @@ import { MediaPath } from "../content/schema.ts";
 import { readStatus } from "../render/build.ts";
 import { serveStatic } from "../server/static.ts";
 import { History } from "./git.ts";
+import { immichConfigFromEnv, ImmichSync } from "./immich.ts";
 import { DOCS, HttpError, PAGES, Store, type DocName } from "./store.ts";
 import { MAX_UPLOAD, processUpload } from "./upload.ts";
 
@@ -56,6 +57,7 @@ function json(res: http.ServerResponse, status: number, data: unknown): true {
 export class EditorApi {
   readonly store: Store;
   readonly history: History;
+  readonly immich: ImmichSync;
   private thumbDir = path.join(os.tmpdir(), "hofchilbi-thumbs");
   private publicUrl: string;
 
@@ -63,11 +65,13 @@ export class EditorApi {
     this.store = new Store(contentDir);
     this.history = new History(contentDir);
     this.publicUrl = publicUrl;
+    this.immich = new ImmichSync(immichConfigFromEnv(), this.store, (message) => this.saved(message));
   }
 
   async init(): Promise<void> {
     await mkdir(this.store.dir, { recursive: true });
     await this.history.init();
+    this.immich.start();
   }
 
   private uploads: Promise<unknown> = Promise.resolve();
@@ -155,6 +159,13 @@ export class EditorApi {
         return true;
       }
 
+      if (p === "/api/immich/sync" && m === "POST") {
+        if (!this.immich.status.enabled) throw new HttpError(404, "Immich ist nicht eingerichtet.");
+        // Can take minutes; the editor polls /api/state for the result.
+        void this.immich.sync().catch(() => undefined);
+        return json(res, 202, this.immich.status);
+      }
+
       if (p === "/api/history" && m === "GET") return json(res, 200, await this.history.log());
       if (p === "/api/restore" && m === "POST") {
         const body = await readJson(req);
@@ -180,7 +191,7 @@ export class EditorApi {
     for (const name of Object.keys(DOCS) as DocName[]) docs[name] = await this.store.getDoc(name);
     const pages: Record<string, unknown> = {};
     for (const name of PAGES) pages[name] = await this.store.getPage(name);
-    return { docs, news: await this.store.listNews(), pages, publicUrl: this.publicUrl, build: await readStatus() };
+    return { docs, news: await this.store.listNews(), pages, publicUrl: this.publicUrl, build: await readStatus(), immich: this.immich.status };
   }
 
   /** Small WebP preview of an uploaded image (originals can be several MB). */

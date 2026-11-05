@@ -1159,6 +1159,137 @@ a.tile:hover {
 }
 
 /* Gallery */
+/* Impressionen overview: one card per year, the newest bigger */
+.section > h2#years-title {
+  text-align: center;
+  margin-bottom: clamp(24px, 3vw, 40px);
+}
+.year-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: clamp(12px, 1.6vw, 20px);
+}
+@media (min-width: 768px) {
+  .year-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .year-card--big {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+}
+.year-card {
+  position: relative;
+  display: block;
+  height: 100%;
+  overflow: hidden;
+  color: var(--white);
+  text-decoration: none;
+  background: #222;
+}
+.year-card img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  transition: transform 0.4s ease-out;
+}
+.year-card:hover img {
+  transform: scale(1.03);
+}
+.year-card::after {
+  content: "";
+  position: absolute;
+  inset: 45% 0 0;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.6));
+}
+.year-card__label {
+  position: absolute;
+  z-index: 1;
+  left: clamp(14px, 2vw, 24px);
+  right: clamp(14px, 2vw, 24px);
+  bottom: clamp(12px, 1.6vw, 20px);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.year-card__year {
+  font-size: clamp(2rem, 3vw + 1rem, 3.6rem);
+  font-stretch: 68%;
+  font-weight: 900;
+  line-height: 1;
+}
+.year-card--big .year-card__year {
+  font-size: clamp(2.6rem, 5vw + 1rem, 6rem);
+}
+.year-card__count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Year page: back link, year chips, count */
+.gallery-section {
+  max-width: none;
+  padding-top: clamp(30px, 4vw, 50px);
+}
+.gallery-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin-bottom: clamp(20px, 3vw, 32px);
+}
+.back-link {
+  font-weight: 700;
+  text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) left bottom / 0 1px no-repeat;
+  transition: background-size 0.25s ease-out;
+}
+.back-link::before {
+  content: "← ";
+}
+.back-link:hover {
+  background-size: 100% 1px;
+}
+.year-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.year-nav a {
+  display: block;
+  padding: 0.35em 0.9em;
+  border: 1px solid #d4d4d0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+}
+.year-nav a:hover {
+  border-color: var(--black);
+}
+.year-nav a[aria-current="page"] {
+  background: var(--black);
+  border-color: var(--black);
+  color: var(--white);
+}
+.gallery-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
 .gallery {
   list-style: none;
   margin: 0 0 clamp(40px, 6vw, 80px);
@@ -1170,6 +1301,11 @@ a.tile:hover {
 @media (min-width: 768px) {
   .gallery {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (min-width: 1100px) {
+  .gallery {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 .gallery a {

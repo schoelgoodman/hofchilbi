@@ -65,7 +65,7 @@ async function headerPartner(ctx: Ctx): Promise<Raw | ""> {
 }
 
 const navLinks = (current: string): Raw[] =>
-  NAV.map((n) => html`<li><a href="${n.href}"${n.href === current ? html` aria-current="page"` : ""}>${n.label}</a></li>`);
+  NAV.map((n) => html`<li><a href="${n.href}"${n.href === current || (n.href !== "/" && current.startsWith(`${n.href}/`)) ? html` aria-current="page"` : ""}>${n.label}</a></li>`);
 
 /**
  * Site header over the hero. Without JS it scrolls away with the page; site.js makes it sticky:

@@ -256,32 +256,77 @@ export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
 }
 
 // ---------------------------------------------------------------- Impressionen
+/** Year chips to switch between galleries. */
+function yearNav(years: number[], current?: number): Raw {
+  return html`<nav class="year-nav" aria-label="Jahre"><ul>${years.map(
+    (y) => html`<li><a href="/impressionen/${y}"${y === current ? html` aria-current="page"` : ""}>${y}</a></li>`,
+  )}</ul></nav>`;
+}
+
+/** Overview: one card per year (cover photo, year, number of photos). */
 export async function impressionenPage(ctx: Ctx): Promise<PageDef> {
   const { site, galleries } = ctx.content;
-  const sections = [];
-  for (const g of galleries.galleries) {
-    const items = await Promise.all(
-      g.images.map(async (im, i) => {
-        const alt = im.alt || `Hofchilbi ${g.year}, Bild ${i + 1}`;
-        const thumb = await ctx.images.img(im.src, { alt, sizes: "(min-width: 768px) 31vw, 47vw", widths: [400, 700], aspect: 3 / 2 });
-        const large = await ctx.images.single(im.src, 1800);
-        return html`<li><a href="${large}" data-lightbox>${thumb}</a></li>`;
-      }),
-    );
-    sections.push(html`<section class="section" aria-labelledby="g-${g.year}">
-      <h2 id="g-${g.year}">${g.title ?? String(g.year)}</h2>
-      <ul class="gallery">${items}</ul>
-    </section>`);
-  }
-  const years = galleries.galleries.map((g) => g.year).join(", ");
+  const list = galleries.galleries.filter((g) => g.images.length);
+  const cards = await Promise.all(
+    list.map(async (g, i) => {
+      const cover = g.images[Math.min(g.images.length - 1, Math.floor(g.images.length / 3))]!;
+      const img = await ctx.images.img(cover.src, { alt: "", sizes: i === 0 ? "(min-width: 768px) 66vw, 92vw" : "(min-width: 768px) 33vw, 92vw", widths: [480, 720, 1080], aspect: 3 / 2 });
+      return html`<li${i === 0 ? html` class="year-card--big"` : ""}><a class="year-card" href="/impressionen/${g.year}">
+        ${img}
+        <span class="year-card__label"><span class="year-card__year">${g.title ?? String(g.year)}</span><span class="year-card__count">${g.images.length} Fotos</span></span>
+      </a></li>`;
+    }),
+  );
+  const years = list.map((g) => g.year).join(", ");
   return {
     path: "/impressionen",
     title: "Impressionen",
     description: `Fotos der Hofchilbi Wil${years ? ` ${years}` : ""}: Stimmung, Bars und Festbetrieb im Hof zu Wil.`,
     preload: await heroPreload(ctx, site.pageImages.impressionen),
     hero: await hero(ctx, { image: site.pageImages.impressionen, inner: html`<h1>Impressionen</h1>` }),
-    main: html`${sections}`,
+    main: list.length
+      ? html`<section class="section" aria-labelledby="years-title">
+      <h2 id="years-title">Fotos nach Jahr</h2>
+      <ul class="year-cards">${cards}</ul>
+    </section>`
+      : html`<section class="section"><p class="muted">Bald gibt es hier Fotos.</p></section>`,
   };
+}
+
+/** One page per year with all photos of its gallery. */
+export async function impressionenYearPages(ctx: Ctx): Promise<PageDef[]> {
+  const { site, galleries } = ctx.content;
+  const list = galleries.galleries.filter((g) => g.images.length);
+  const years = list.map((g) => g.year);
+  const pages: PageDef[] = [];
+  for (const g of list) {
+    const items = await Promise.all(
+      g.images.map(async (im, i) => {
+        const alt = im.alt || `Hofchilbi ${g.year}, Foto ${i + 1}`;
+        const thumb = await ctx.images.img(im.src, { alt, sizes: "(min-width: 1100px) 25vw, (min-width: 768px) 33vw, 50vw", widths: [400, 700], aspect: 3 / 2 });
+        const large = await ctx.images.single(im.src, 1800);
+        return html`<li><a href="${large}" data-lightbox>${thumb}</a></li>`;
+      }),
+    );
+    const title = g.title ?? `Impressionen ${g.year}`;
+    pages.push({
+      path: `/impressionen/${g.year}`,
+      title,
+      description: `${g.images.length} Fotos der Hofchilbi Wil ${g.year}: Stimmung, Bars und Festbetrieb im Hof zu Wil.`,
+      preload: await heroPreload(ctx, site.pageImages.impressionen),
+      hero: await hero(ctx, { image: site.pageImages.impressionen, inner: html`<h1>${title}</h1>` }),
+      main: html`<section class="section gallery-section" aria-labelledby="g-title">
+        <h2 id="g-title" class="visually-hidden">${title}</h2>
+        <div class="gallery-head">
+          <a class="back-link" href="/impressionen">Alle Jahre</a>
+          ${yearNav(years, g.year)}
+          <span class="gallery-count">${g.images.length} Fotos</span>
+        </div>
+        <ul class="gallery">${items}</ul>
+      </section>`,
+    });
+  }
+  return pages;
 }
 
 // ---------------------------------------------------------------- Kontakt

@@ -27,6 +27,30 @@
                   Empty: the editor stays locked (503); the public site runs normally.
                 '';
               };
+              # Impressionen from Immich: every album «Hofchilbi <year>» becomes a gallery.
+              immichUrl = mkOption {
+                type = types.str;
+                default = "http://immich-server:2283";
+                rank = 10;
+                description = ''
+                  Immich as the editor reaches it on the internal network (no /api).
+                  Default: Neo's Immich service.
+                '';
+              };
+              immichApiKey = lib.neo.mkSecretOption {
+                default = "";
+                rank = 11;
+                description = ''
+                  Immich API key (Immich → Account settings → API keys) with the permissions
+                  album.read, asset.read and asset.view. Empty: galleries are edited by hand.
+                '';
+              };
+              immichSyncMinutes = mkOption {
+                type = types.ints.unsigned;
+                default = 30;
+                rank = 12;
+                description = "How often the editor fetches new photos from Immich (minutes, 0 = only on «Jetzt abgleichen»).";
+              };
             }
             // neo.mkReverseProxyOptions {
               # Lowercase a-z only and unique across services (advocat-heft already uses "redaktion").

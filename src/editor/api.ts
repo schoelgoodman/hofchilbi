@@ -61,6 +61,15 @@ export interface State {
   pages: Record<string, PageEntry>;
   publicUrl: string;
   build: { ok: boolean; at?: string; error?: string } | null;
+  immich: ImmichStatus;
+}
+export interface ImmichStatus {
+  enabled: boolean;
+  interval: number;
+  running: boolean;
+  lastRun?: string;
+  lastError?: string;
+  albums: { year: number; name: string; images: number }[];
 }
 
 export const api = {
@@ -74,6 +83,7 @@ export const api = {
     call<{ path: string }>("POST", `/api/upload?dir=${encodeURIComponent(dir)}`, file, { "X-Filename": encodeURIComponent(file.name) }),
   history: () => call<{ hash: string; date: string; message: string }[]>("GET", "/api/history"),
   restore: (hash: string) => call<{ date: string }>("POST", "/api/restore", { hash }),
+  immichSync: () => call<ImmichStatus>("POST", "/api/immich/sync", {}),
 };
 
 export function thumb(src: string | undefined, w = 320): string {

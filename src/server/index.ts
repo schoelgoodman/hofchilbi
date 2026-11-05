@@ -214,7 +214,8 @@ function watchForDev(): void {
   };
   for (const dir of [contentDir(), path.join(repoRoot, "src/design")]) {
     try {
-      watch(dir, { recursive: true }, (_e, file) => file && !/(^|\/)\./.test(String(file)) && rebuild(String(file)));
+      // Immich downloads: one rebuild when galleries.yaml is written, not one per photo.
+      watch(dir, { recursive: true }, (_e, file) => file && !/(^|\/)\./.test(String(file)) && !String(file).startsWith("media/immich/") && rebuild(String(file)));
     } catch {
       // Directory missing (no content yet): nothing to watch.
     }

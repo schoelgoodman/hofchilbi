@@ -23,13 +23,18 @@
             assertion = lib.neo.secrets.isPlaceholder cfg.accessKey || builtins.match "[A-Za-z0-9_-]*" cfg.accessKey != null;
             message = "neo.services.hofchilbi-redaktion.accessKey: letters, digits, - and _ only. Easiest: «Generate».";
           }
+          {
+            assertion = builtins.match "https?://[^/[:space:]]+/?" cfg.immichUrl != null;
+            message = "neo.services.hofchilbi-redaktion.immichUrl: http(s)://host[:port], without /api.";
+          }
         ];
 
         # The key reaches the container via a file, not the unit (Nix store). Only the editor
         # needs it; the site notices saves via content/.version and needs no secret.
-        neo.core.secrets.containerEnv.hofchilbi-redaktion = mkIf (cfg.accessKey != "") {
-          HOFCHILBI_KEY = cfg.accessKey;
-        };
+        neo.core.secrets.containerEnv.hofchilbi-redaktion = mkMerge [
+          (mkIf (cfg.accessKey != "") {HOFCHILBI_KEY = cfg.accessKey;})
+          (mkIf (cfg.immichApiKey != "") {IMMICH_API_KEY = cfg.immichApiKey;})
+        ];
 
         # Wants instead of Requires: restarting hofchilbi-image does not restart the editor.
         systemd.services.docker-hofchilbi-redaktion = {
@@ -54,6 +59,8 @@
             # «Website ansehen» in the editor.
             PUBLIC_URL = optionalString (domain != null) "https://${site.subdomain}.${domain}";
             PORT = "4330";
+            IMMICH_URL = cfg.immichUrl;
+            IMMICH_SYNC_MINUTES = toString cfg.immichSyncMinutes;
           };
           user = "${toString config.neo.core.uid}:${toString config.neo.core.gid}";
           autoStart = true;

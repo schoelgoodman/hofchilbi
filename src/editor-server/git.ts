@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { stat, writeFile } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -41,6 +41,12 @@ export class History {
       } catch {
         await this.git(["init", "-q", "-b", "main"]);
         await writeFile(path.join(this.dir, ".gitignore"), ".version\n*.tmp\n.DS_Store\n");
+      }
+      // Photos synced from Immich: Immich is the original, the history would only grow.
+      const ignore = await readFile(path.join(this.dir, ".gitignore"), "utf8").catch(() => "");
+      if (!ignore.split("\n").includes("media/immich/")) {
+        await writeFile(path.join(this.dir, ".gitignore"), `${ignore.replace(/\n?$/, "\n")}media/immich/\n.immich-status.json\n`);
+        await this.git(["rm", "-r", "-q", "--cached", "--ignore-unmatch", "media/immich"]);
       }
       await this.git(["add", "-A"]);
       const pending = await this.git(["status", "--porcelain"]);
