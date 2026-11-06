@@ -85,10 +85,12 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
   };
   const [newest, ...older] = shown;
   const newsSection = newest
-    ? html`<section class="section news" aria-labelledby="news-title">
-    <h2 id="news-title">Hofchilbi-News</h2>
-    ${await newsCard(newest, true)}
-    ${older.length ? html`<div class="news__list">${await Promise.all(older.map((n) => newsCard(n, false)))}</div>` : ""}
+    ? html`<section class="news section--paper" aria-labelledby="news-title">
+    <div class="news__inner">
+      <h2 id="news-title">Hofchilbi-News</h2>
+      ${await newsCard(newest, true)}
+      ${older.length ? html`<div class="news__list">${await Promise.all(older.map((n) => newsCard(n, false)))}</div>` : ""}
+    </div>
   </section>`
     : "";
 

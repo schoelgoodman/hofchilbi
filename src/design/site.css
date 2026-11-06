@@ -655,9 +655,22 @@ h3 {
   border-bottom: 1px solid var(--black);
 }
 
-/* News: newest item large, older ones as cards (a swipeable row on phones) */
-.news > h2 {
+/* News: white cards on grey, like the sponsors. Newest item large, older ones smaller
+   (a swipeable row on phones). The photo fills the card edge to edge, the text gets the padding. */
+.news {
+  padding: clamp(50px, 8vw, 105px) var(--pad) clamp(50px, 7vw, 90px);
+}
+.news__inner {
+  max-width: var(--max);
+  margin: 0 auto;
+}
+.news__inner > h2 {
   text-align: center;
+}
+.news__featured,
+.news__card {
+  background: var(--white);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
 }
 .news__date {
   color: var(--grey);
@@ -681,6 +694,7 @@ h3 {
   flex: 1;
   display: flex;
   flex-direction: column;
+  padding: 18px 18px 22px;
 }
 .news__card .news__cta {
   margin-top: auto;
@@ -691,13 +705,21 @@ h3 {
 }
 .news__featured {
   display: grid;
-  gap: clamp(20px, 4vw, 56px);
-  align-items: center;
+}
+.news__featured .news__body {
+  align-self: center;
+  padding: 20px 20px 24px;
 }
 .news__featured .news__media img {
+  display: block;
   width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 @media (min-width: 768px) {
+  .news__featured .news__body {
+    padding: clamp(28px, 4vw, 56px);
+  }
   .news__featured {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   }
@@ -732,12 +754,10 @@ h3 {
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
-  gap: 18px;
   font-size: 0.95em;
-  border-top: 3px solid var(--black);
-  padding-top: 18px;
 }
 .news__card .news__media img {
+  display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
