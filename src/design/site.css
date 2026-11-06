@@ -829,28 +829,32 @@ h3 {
   flex-direction: column;
   align-items: center;
   gap: 18px;
-  background: var(--black);
-  color: var(--white);
+  background: var(--white);
+  color: var(--black);
   text-decoration: none;
-  padding: clamp(36px, 5vw, 60px) var(--pad);
+  padding: clamp(28px, 4vw, 48px) var(--pad);
+  outline-offset: -3px;
+  /* Same tile and hover as the other sponsors (.tile) */
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  transition: box-shadow 0.2s, transform 0.2s;
 }
 .presenting__label {
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #bbb;
+  color: var(--grey);
 }
 .presenting__logo img {
   width: min(420px, 70vw);
 }
-.presenting__logo--plate {
-  background: var(--white);
-  padding: 16px 24px;
-}
 @media (hover: hover) {
-  .presenting:hover .presenting__label {
-    color: var(--white);
+  a.presenting:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgb(0 0 0 / 0.1);
+  }
+  a.presenting:hover .presenting__label {
+    color: var(--black);
   }
 }
 

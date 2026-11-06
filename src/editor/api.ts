@@ -46,7 +46,7 @@ export interface Versioned<T> {
 }
 export interface NewsEntry {
   slug: string;
-  meta: { title: string; date: string; image?: string; imageAlt?: string; ctaLabel?: string; ctaUrl?: string; draft?: boolean };
+  meta: { title: string; date: string; image?: string; imageAlt?: string; ctaTarget?: "helfer" | "goenner"; ctaLabel?: string; ctaUrl?: string; draft?: boolean };
   body: string;
   version: string;
 }
@@ -76,6 +76,16 @@ export interface HistoryPage {
   entries: { hash: string; date: string; message: string; area: { file: string; label: string } | null }[];
   more: boolean;
   deleted: { hash: string; date: string; file: string; title: string }[];
+  deletedFiles: { hash: string; date: string; file: string; title: string }[];
+}
+
+export interface MediaFile {
+  path: string;
+  name: string;
+  folder: string;
+  kind: "image" | "pdf" | "other";
+  size: number;
+  used: { label: string; route: string }[];
 }
 
 export const api = {
@@ -88,6 +98,8 @@ export const api = {
   upload: (dir: string, file: File) =>
     call<{ path: string }>("POST", `/api/upload?dir=${encodeURIComponent(dir)}`, file, { "X-Filename": encodeURIComponent(file.name) }),
   history: (skip = 0) => call<HistoryPage>("GET", `/api/history?skip=${skip}`),
+  media: () => call<MediaFile[]>("GET", "/api/media"),
+  deleteMedia: (path: string) => call<{ hash: string; file: string }>("DELETE", `/api/media?path=${encodeURIComponent(path)}`),
   restoreFile: (hash: string, file: string) => call<object>("POST", "/api/restore-file", { hash, file }),
   restore: (hash: string) => call<{ date: string }>("POST", "/api/restore", { hash }),
   immichSync: () => call<ImmichStatus>("POST", "/api/immich/sync", {}),

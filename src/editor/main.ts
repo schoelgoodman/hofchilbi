@@ -6,6 +6,7 @@ import { h, toast } from "./dom.ts";
 import type { Ctx } from "./screens/doc.ts";
 import { galleriesScreen } from "./screens/galleries.ts";
 import { historyScreen } from "./screens/history.ts";
+import { mediaScreen } from "./screens/media.ts";
 import { anzapferScreen, teamScreen, timelineScreen } from "./screens/people.ts";
 import { allgemeinScreen, impressionenScreen, kontaktScreen, startScreen } from "./screens/site.ts";
 import { sponsorsScreen } from "./screens/sponsors.ts";
@@ -51,8 +52,11 @@ const PAGES: Route[] = [
     render: impressumScreen,
   },
 ];
-const HISTORY: Route = { hash: "verlauf", label: "Verlauf", render: historyScreen };
-const ROUTES = [GENERAL, ...PAGES, HISTORY];
+const TOOLS: Route[] = [
+  { hash: "medien", label: "Medien", render: mediaScreen },
+  { hash: "verlauf", label: "Verlauf", render: historyScreen },
+];
+const ROUTES = [GENERAL, ...PAGES, ...TOOLS];
 
 let state: State;
 let isDirty: () => boolean = () => false;
@@ -98,7 +102,7 @@ function renderNav(current: Route): void {
         return h("li", {}, link(r), children.length ? h("ul", { class: "nav__sub" }, children.map((c) => h("li", {}, link(c)))) : null);
       }),
     ),
-    h("ul", { class: "nav__tools" }, h("li", {}, link(HISTORY))),
+    h("ul", { class: "nav__tools" }, TOOLS.map((r) => h("li", {}, link(r)))),
   );
 }
 

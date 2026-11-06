@@ -6,6 +6,7 @@ import { test } from "node:test";
 import sharp from "sharp";
 import { History } from "./git.ts";
 import { areaLabel, HttpError, siteChange, Store, version } from "./store.ts";
+import { assertDeletable, listMedia } from "./media.ts";
 import { processUpload, sniff, uploadDir } from "./upload.ts";
 
 async function tmp(): Promise<string> {
@@ -57,8 +58,7 @@ test("sniff: by content, not by name", async () => {
 
 test("uploadDir: whitelist only", () => {
   assert.equal(uploadDir("logos"), "logos");
-  assert.equal(uploadDir("galerie/2027"), "galerie/2027");
-  for (const bad of ["galerie", "../x", "galerie/../../x", "media", ""]) assert.throws(() => uploadDir(bad));
+  for (const bad of ["galerie", "galerie/2027", "../x", "logos/../../x", "media", ""]) assert.throws(() => uploadDir(bad));
 });
 
 test("upload: SVG with script becomes a PNG, metadata stripped, PDF only for documents", async () => {
@@ -72,7 +72,7 @@ test("upload: SVG with script becomes a PNG, metadata stripped, PDF only for doc
     .jpeg()
     .withExif({ IFD0: { Copyright: "secret-gps-like-data" } })
     .toBuffer();
-  const up2 = await processUpload(dir, "galerie/2027", "IMG 1234.JPG", jpg);
+  const up2 = await processUpload(dir, "bilder", "IMG 1234.JPG", jpg);
   const out = await readFile(path.join(dir, up2.path));
   assert.equal(up2.width, 2560);
   assert.ok(!out.includes("secret-gps-like-data"));
@@ -179,4 +179,63 @@ test("siteChange: names the screens a change of site.yaml belongs to", () => {
   assert.equal(siteChange(base, structuredClone(base)), "Allgemein gespeichert");
   assert.equal(siteChange(base, { ...base, hero: { image: "b" } }), "Start geändert");
   assert.equal(siteChange(base, { ...base, event: { days: [] }, pageImages: { geschichte: "x", kontakt: "k" } }), "Allgemein, Titelbild Geschichte geändert");
+});
+
+const SITE = { event: { days: ["2027-07-23"] }, hero: { image: "media/bilder/a.jpg" }, links: { goenner: "media/dokumente/g.pdf", helfer: "https://example.ch" }, helperCta: { title: "T", image: "media/bilder/a.jpg" }, contact: { email: "a@b.ch", datenschutz: "https://example.ch", ktv: "https://example.ch" }, social: {}, pageImages: { geschichte: "media/bilder/b.jpg", impressionen: "media/bilder/a.jpg", kontakt: "media/bilder/a.jpg" }, seo: { description: "x" } };
+
+async function mediaStore(): Promise<{ dir: string; s: Store }> {
+  const dir = await tmp();
+  const s = new Store(dir);
+  for (const f of ["bilder/a.jpg", "bilder/b.jpg", "bilder/frei.jpg", "dokumente/g.pdf", "dokumente/news.pdf", "immich/2027/x.jpg", "galerie/2025/alt.jpg"]) {
+    await mkdir(path.dirname(path.join(dir, "media", f)), { recursive: true });
+    await writeFile(path.join(dir, "media", f), "x");
+  }
+  await s.putDoc("site", SITE, "");
+  return { dir, s };
+}
+
+test("media: knows where files are used, leaves gallery photos out", async () => {
+  const { s } = await mediaStore();
+  const slug = await s.createNews("Fest");
+  const [n] = await s.listNews();
+  await s.putNews(slug, { title: "Fest", date: "2027-01-02", ctaLabel: "PDF", ctaUrl: "media/dokumente/news.pdf" }, "Text", n!.version);
+  const files = new Map((await listMedia(s)).map((f) => [f.path, f]));
+  assert.ok(!files.has("media/immich/2027/x.jpg"));
+  assert.ok(!files.has("media/galerie/2025/alt.jpg"));
+  assert.deepEqual(files.get("media/bilder/b.jpg")!.used, [{ label: "Geschichte", route: "geschichte" }]);
+  assert.deepEqual(files.get("media/bilder/a.jpg")!.used.map((u) => u.label).sort(), ["Impressionen", "Kontakt", "Start"]);
+  assert.deepEqual(files.get("media/dokumente/g.pdf")!.used, [{ label: "Start", route: "start" }]);
+  assert.deepEqual(files.get("media/dokumente/news.pdf")!.used, [{ label: "News: Fest", route: `news/${slug}` }]);
+  assert.deepEqual(files.get("media/bilder/frei.jpg")!.used, []);
+  assert.equal(files.get("media/dokumente/g.pdf")!.kind, "pdf");
+});
+
+test("media: only unused files of our own can be deleted", async () => {
+  const { s } = await mediaStore();
+  await assertDeletable(s, "media/bilder/frei.jpg");
+  await assert.rejects(assertDeletable(s, "media/bilder/a.jpg"), (e: HttpError) => e.status === 409 && e.message.includes("Start"));
+  await assert.rejects(assertDeletable(s, "media/immich/2027/x.jpg"), (e: HttpError) => e.status === 400);
+  await assert.rejects(assertDeletable(s, "media/galerie/2025/alt.jpg"), (e: HttpError) => e.status === 400);
+  await assert.rejects(assertDeletable(s, "media/../site.yaml"), (e: HttpError) => e.status === 400);
+  await assert.rejects(assertDeletable(s, "media/bilder/fehlt.jpg"), (e: HttpError) => e.status === 404);
+});
+
+test("restoreFile: brings back an upload deleted on its own, also a large one", async () => {
+  const { dir, h } = await historyRepo();
+  await mkdir(path.join(dir, "media"));
+  // Larger than the output limit of the git calls.
+  await writeFile(path.join(dir, "media/gross.pdf"), Buffer.alloc(11 * 1024 * 1024, 1));
+  await h.commit("Datei hochgeladen: media/gross.pdf");
+  await rm(path.join(dir, "media/gross.pdf"));
+  const del = await h.commit("Datei gelöscht: gross.pdf");
+  assert.deepEqual((await h.deletions("media", 30, "^Datei gelöscht: ")).map((d) => d.hash), [del]);
+  await h.restoreFile(del, "media/gross.pdf", "Datei gross.pdf");
+  assert.equal((await stat(path.join(dir, "media/gross.pdf"))).size, 11 * 1024 * 1024);
+});
+
+test("putNews: a news button may lead to an uploaded PDF", async () => {
+  const { s } = await mediaStore();
+  const slug = await s.createNews("Fest");
+  const [n] = await s.listNews();
+  await s.putNews(slug, { title: "Fest", date: "2027-01-02", ctaLabel: "PDF", ctaUrl: "media/dokumente/g.pdf" }, "", n!.version);
 });

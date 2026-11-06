@@ -1,7 +1,7 @@
 import { eventLabel, eventYear } from "../content/load.ts";
 import type { Anzapfer, Sponsor } from "../content/schema.ts";
 import { html, type Raw } from "./html.ts";
-import { hero, heroPreload, type Ctx, type PageDef } from "./layout.ts";
+import { hero, heroPreload, linkAttrs, type Ctx, type PageDef } from "./layout.ts";
 import { markdown, markdownText } from "./markdown.ts";
 
 const LONG_DATE = new Intl.DateTimeFormat("de-CH", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -50,8 +50,8 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
   const heroInner = html`<h1>${site.title}</h1>
     <p class="hero__date">${label}</p>
     <div class="buttons">
-      <a class="button button--lg" href="${await ctx.images.href(site.links.goenner)}"${external(site.links.goenner)}${site.links.goenner.endsWith(".pdf") ? html` target="_blank"` : ""}>Gönner werden</a>
-      <a class="button button--lg" href="${await ctx.images.href(site.links.helfer)}"${external(site.links.helfer)}>Helfer werden</a>
+      <a class="button button--lg" href="${await ctx.images.href(site.links.goenner)}"${linkAttrs(site.links.goenner)}>Gönner werden</a>
+      <a class="button button--lg" href="${await ctx.images.href(site.links.helfer)}"${linkAttrs(site.links.helfer)}>Helfer werden</a>
     </div>`;
 
   // Newest item large, the next ones as cards (on phones a row to swipe through).
@@ -65,14 +65,20 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
           aspect: featured ? undefined : 4 / 3,
         })
       : "";
+    // The shared buttons always follow the links set on Start.
+    const cta = n.ctaTarget
+      ? { label: n.ctaTarget === "helfer" ? "Helfer werden" : "Gönner werden", url: site.links[n.ctaTarget] }
+      : n.ctaLabel && n.ctaUrl
+        ? { label: n.ctaLabel, url: n.ctaUrl }
+        : null;
     return html`<article class="${featured ? "news__featured" : "news__card"}">
         ${img ? html`<div class="news__media">${img}</div>` : ""}
         <div class="news__body">
           <p class="news__date"><time datetime="${n.date}">${LONG_DATE.format(new Date(n.date))}</time></p>
           <h3>${n.title}</h3>
           ${markdown(n.body)}
-          ${n.ctaLabel && n.ctaUrl
-            ? html`<p class="news__cta"><a class="button button--dark" href="${await ctx.images.href(n.ctaUrl)}"${external(n.ctaUrl)}${n.ctaUrl.endsWith(".pdf") ? html` target="_blank"` : ""}>${n.ctaLabel}</a></p>`
+          ${cta
+            ? html`<p class="news__cta"><a class="button button--dark" href="${await ctx.images.href(cta.url)}"${linkAttrs(cta.url)}>${cta.label}</a></p>`
             : ""}
         </div>
       </article>`;
@@ -89,7 +95,7 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
   const helper = html`<section class="banner" aria-labelledby="helfer-title">
     ${await ctx.images.img(site.helperCta.image, { alt: "", sizes: "100vw", cls: "banner__bg" })}
     <h2 id="helfer-title">${site.helperCta.title}</h2>
-    <a class="button button--lg" href="${await ctx.images.href(site.links.helfer)}"${external(site.links.helfer)}>Helfer werden</a>
+    <a class="button button--lg" href="${await ctx.images.href(site.links.helfer)}"${linkAttrs(site.links.helfer)}>Helfer werden</a>
   </section>`;
 
   const current = anzapfer.list.find((a) => a.name);
@@ -105,7 +111,7 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
     : "";
 
   const p = sponsors.presenting;
-  const presentingLogo = p ? (await ctx.images.logo(p.logoWhite ?? p.logo, { alt: p.name, sizes: "(min-width: 768px) 420px, 70vw", widths: [400, 600, 840] })).img : "";
+  const presentingLogo = p ? (await ctx.images.logo(p.logo, { alt: p.name, sizes: "(min-width: 768px) 420px, 70vw", widths: [400, 600, 840] })).img : "";
   const tier = async (title: string, list: Sponsor[], kind: "main" | "small") =>
     list.length ? html`<h3 class="tier">${title}</h3>${await logoTiles(ctx, list, kind)}` : "";
   const sponsorSection = html`<section class="sponsors section--paper" id="sponsoren" aria-labelledby="sponsoren-title">
@@ -114,7 +120,7 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
       ${p
         ? html`<${p.url ? "a" : "div"} class="presenting"${p.url ? html` href="${await ctx.images.href(p.url)}"${external(p.url)}` : ""}>
         <span class="presenting__label">Presenting Partner</span>
-        <span class="presenting__logo${p.logoWhite ? "" : " presenting__logo--plate"}">${presentingLogo}</span>
+        <span class="presenting__logo">${presentingLogo}</span>
       </${p.url ? "a" : "div"}>`
         : ""}
       ${await tier("Hauptsponsoren", sponsors.main, "main")}
@@ -346,7 +352,7 @@ export async function kontaktPage(ctx: Ctx): Promise<PageDef> {
   const mail = site.contact.email;
   const goenner = site.links.goenner;
   const tiles: { href: string; title: string; text: string; external: boolean; icon?: string; wide?: boolean }[] = [
-    { href: await ctx.images.href(site.links.helfer), title: "Helfer werden", text: "Melde dich für einen Einsatz an der Hofchilbi an.", external: /^https?:/.test(site.links.helfer) },
+    { href: await ctx.images.href(site.links.helfer), title: "Helfer werden", text: "Melde dich für einen Einsatz an der Hofchilbi an.", external: /^https?:/.test(site.links.helfer) || site.links.helfer.endsWith(".pdf") },
     { href: await ctx.images.href(goenner), title: "Gönner werden", text: goenner.endsWith(".pdf") ? "Gönnerbrief mit allen Infos (PDF)." : "Unterstütze die Hofchilbi als Gönner.", external: /^https?:/.test(goenner) || goenner.endsWith(".pdf") },
     { href: `mailto:${mail}?subject=${encodeURIComponent("Sponsoring Hofchilbi")}`, title: "Sponsoring anfragen", text: "Werde Partner der Hofchilbi. Wir senden dir gerne unser Angebot.", external: false, wide: true },
   ];

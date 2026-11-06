@@ -1,5 +1,6 @@
 import { h } from "../dom.ts";
 import { image, linkOrFile, text, type Form } from "../form.ts";
+import { siteArea } from "../../content/site-areas.ts";
 import { docScreen, group, type Ctx } from "./doc.ts";
 
 const MONTHS = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
@@ -58,14 +59,7 @@ function days(form: Form): HTMLElement {
   );
 }
 
-/** site.yaml feeds several screens. Tells where a field is when a save fails on another screen. */
-export function siteArea(path: string): string {
-  if (path.startsWith("pageImages.geschichte")) return "Geschichte";
-  if (path.startsWith("pageImages.impressionen")) return "Impressionen";
-  if (path.startsWith("pageImages.kontakt")) return "Kontakt";
-  if (/^(hero|links|helperCta)(\.|$)/.test(path)) return "Start";
-  return "Allgemein";
-}
+export { siteArea };
 
 const siteScreen = (ctx: Ctx, title: string, intro: string, build: (f: Form) => (HTMLElement | null)[]) =>
   docScreen(ctx, "site", title, intro, build, siteArea);
@@ -105,9 +99,10 @@ export function startScreen(ctx: Ctx): HTMLElement {
       image(f, "hero.image", "Grosses Startbild", { dir: "bilder", hint: "Querformat, mindestens 2000 Pixel breit. Wird abgedunkelt, damit die weisse Schrift lesbar bleibt." }),
     ),
     group(
-      "Buttons",
+      "Buttons «Gönner werden» und «Helfer werden»",
+      h("p", { class: "group__note" }, "Hier einmal festlegen, wohin sie führen. Das gilt auf der ganzen Website: Kopfzeile, Menü, Startbild, Helfer-Band, Kontakt und alle News, die einen dieser Buttons verwenden."),
       linkOrFile(f, "links.goenner", "«Gönner werden» führt zu", "dokumente"),
-      text(f, "links.helfer", "«Helfer werden» führt zu", { type: "url", hint: "Link zum Anmeldeformular (z. B. Microsoft Forms)." }),
+      linkOrFile(f, "links.helfer", "«Helfer werden» führt zu", "dokumente", "z. B. der Link zum Anmeldeformular (Microsoft Forms)."),
     ),
     group(
       "Helfer-Band",

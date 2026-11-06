@@ -10,7 +10,7 @@ import { HttpError, atomicWrite, slugify } from "./store.ts";
  * PDFs are only accepted for documents (Gönner letter).
  */
 
-export const UPLOAD_DIRS = ["logos", "team", "anzapfer", "news", "bilder", "dokumente", "galerie"] as const;
+export const UPLOAD_DIRS = ["logos", "team", "anzapfer", "news", "bilder", "dokumente"] as const;
 export type UploadDir = (typeof UPLOAD_DIRS)[number];
 
 export const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -36,12 +36,10 @@ export function sniff(buf: Buffer): Kind | null {
   return null;
 }
 
-/** "galerie/2027" is allowed for galleries; everything else must be a plain upload dir. */
+/** Must be one of the upload dirs. Gallery photos come from Immich, never from uploads. */
 export function uploadDir(raw: string | null): string {
   const dir = String(raw ?? "");
-  const m = /^galerie\/(\d{4})$/.exec(dir);
-  if (m) return dir;
-  if ((UPLOAD_DIRS as readonly string[]).includes(dir) && dir !== "galerie") return dir;
+  if ((UPLOAD_DIRS as readonly string[]).includes(dir)) return dir;
   throw new HttpError(400, "Ungültiger Ordner");
 }
 

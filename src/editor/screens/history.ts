@@ -22,12 +22,12 @@ async function restoreOne(ctx: Ctx, hash: string, file: string, question: string
   }
 }
 
-function deletedBlock(ctx: Ctx, deleted: HistoryPage["deleted"]): HTMLElement | null {
+function deletedBlock(ctx: Ctx, heading: string, what: string, deleted: HistoryPage["deleted"]): HTMLElement | null {
   if (!deleted.length) return null;
   return h(
     "section",
     { class: "history-block" },
-    h("h2", {}, "Gelöschte News"),
+    h("h2", {}, heading),
     h(
       "ul",
       { class: "history" },
@@ -39,7 +39,7 @@ function deletedBlock(ctx: Ctx, deleted: HistoryPage["deleted"]): HTMLElement | 
           h(
             "div",
             { class: "history__tools" },
-            h("button", { type: "button", class: "btn", onclick: () => restoreOne(ctx, d.hash, d.file, `News «${d.title}» zurückholen?`) }, "Zurückholen"),
+            h("button", { type: "button", class: "btn", onclick: () => restoreOne(ctx, d.hash, d.file, `${what} «${d.title}» zurückholen?`) }, "Zurückholen"),
           ),
         ),
       ),
@@ -102,8 +102,10 @@ export function historyScreen(ctx: Ctx): HTMLElement {
     const page = await api.history(shown);
     if (shown === 0) {
       listEl.replaceChildren();
-      const block = deletedBlock(ctx, page.deleted);
-      if (block) deletedEl.replaceChildren(block);
+      deletedEl.replaceChildren(
+        deletedBlock(ctx, "Gelöschte News", "News", page.deleted) ?? "",
+        deletedBlock(ctx, "Gelöschte Dateien", "Datei", page.deletedFiles) ?? "",
+      );
     }
     listEl.append(...page.entries.map((e, i) => entryRow(ctx, e, shown === 0 && i === 0)));
     shown += page.entries.length;

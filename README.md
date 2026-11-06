@@ -51,13 +51,13 @@ Check:
 Code updates: push to GitHub, then Neo → Update → Activate. The image is built by Nix on the
 server (not pulled from a registry).
 
-**Impressionen from Immich (optional):** every Immich album named `Hofchilbi <year>` becomes a
+**Impressionen from Immich:** every Immich album named `Hofchilbi <year>` becomes a
 gallery with all its photos. The editor fetches them (never the public site) every 30 minutes and
 on «Jetzt abgleichen». Create an Immich API key with the permissions `album.read`, `asset.read`,
 `asset.view` and set it as `immichApiKey` («Hofchilbi Redaktion» service; stored as a secret).
 `immichUrl` defaults to Neo's Immich (`http://immich-server:2283`, internal network),
 `immichSyncMinutes` to 30. Synced photos live in `content/media/immich/` (not in the history);
-without a key, galleries are edited by hand as before. Local test: set `IMMICH_URL`,
+there is no manual gallery editing: without a key the galleries stay as they are. Local test: set `IMMICH_URL`,
 `IMMICH_API_KEY` (and optionally `IMMICH_SYNC_MINUTES`) for `npm run dev`.
 
 **Content to the server:** `scripts/push-content.sh <ssh-host>` uploads `dev-content/` to

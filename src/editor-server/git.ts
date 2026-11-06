@@ -115,9 +115,10 @@ export class History {
   }
 
   /** Files once deleted under `dir`, newest deletion first (may exist again by now: the caller checks). */
-  deletions(dir: string, limit = 30): Promise<{ hash: string; date: string; file: string }[]> {
+  deletions(dir: string, limit = 30, grep?: string): Promise<{ hash: string; date: string; file: string }[]> {
     return this.serial(async () => {
-      const out = await this.git(["log", `-n${limit}`, "--diff-filter=D", "--no-renames", "--name-only", "--format=%x01%H%x09%cI", "--", dir]).catch(() => "");
+      const filter = grep ? [`--grep=${grep}`] : [];
+      const out = await this.git(["log", `-n${limit}`, ...filter, "--diff-filter=D", "--no-renames", "--name-only", "--format=%x01%H%x09%cI", "--", dir]).catch(() => "");
       const found: { hash: string; date: string; file: string }[] = [];
       for (const chunk of out.split("\x01")) {
         const [head, ...files] = chunk.split("\n");
@@ -159,15 +160,16 @@ export class History {
   restoreFile(hash: string, file: string, label: string): Promise<void> {
     if (!/^[0-9a-f]{7,40}$/.test(hash)) return Promise.reject(new Error("bad hash"));
     return this.serial(async () => {
+      const has = (rev: string) => this.git(["cat-file", "-e", `${rev}:${file}`]).then(() => true, () => false);
       let source = hash;
-      let text = await this.show(source, file);
-      if (text === null) {
+      if (!(await has(source))) {
         source = `${hash}^`;
-        text = await this.show(source, file);
+        if (!(await has(source))) throw new Error("not in this commit");
       }
-      if (text === null) throw new Error("not in this commit");
       const date = (await this.git(["show", "-s", "--format=%cI", hash])).trim();
       await this.git(["restore", "--source", source, "--staged", "--worktree", "--", file]);
+      // Uploads can be larger than the output limit and refer to nothing.
+      const text = file.startsWith("media/") ? "" : ((await this.show(source, file)) ?? "");
       for (const ref of new Set(text.match(/media\/[A-Za-z0-9._/-]+/g) ?? [])) {
         const missing = await stat(path.join(this.dir, ref)).then(() => false, () => true);
         if (missing) await this.git(["restore", "--source", source, "--staged", "--worktree", "--", ref]).catch(() => undefined);

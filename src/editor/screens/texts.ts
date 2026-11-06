@@ -126,8 +126,39 @@ export function newsScreen(ctx: Ctx, slug?: string): HTMLElement {
   );
 }
 
+type ButtonChoice = "kein" | "helfer" | "goenner" | "eigen";
+
+/** The button below a news text: none, one of the site-wide buttons (links set on Start), or its own. */
+function newsButtonFields(f: Form, isCustom: () => boolean, setCustom: (v: boolean) => void): (HTMLElement | null)[] {
+  const target = f.get("meta.ctaTarget") as "helfer" | "goenner" | undefined;
+  const current: ButtonChoice = target ?? (isCustom() ? "eigen" : "kein");
+  const options: [ButtonChoice, string][] = [["kein", "Kein Button"], ["helfer", "Helfer werden"], ["goenner", "Gönner werden"], ["eigen", "Eigener Button"]];
+  const select = h("select", { id: "f-news-button" }, options.map(([v, label]) => h("option", { value: v, selected: v === current }, label)));
+  select.addEventListener("change", () => {
+    const v = select.value as ButtonChoice;
+    setCustom(v === "eigen");
+    f.set("meta.ctaLabel", undefined);
+    f.set("meta.ctaUrl", undefined);
+    f.set("meta.ctaTarget", v === "helfer" || v === "goenner" ? v : undefined, true);
+  });
+  const err = f.errors["meta.ctaTarget"];
+  return [
+    h(
+      "div",
+      { class: `field${err ? " field--error" : ""}`, "data-path": "meta.ctaTarget" },
+      h("label", { for: "f-news-button" }, "Button unter dem Text"),
+      select,
+      target ? h("small", { class: "hint" }, "Führt immer dorthin, wo dieser Button auch sonst auf der Website hinführt. Festgelegt unter ", h("a", { href: "#/start" }, "Start"), ".") : null,
+      err ? h("small", { class: "error" }, err) : null,
+    ),
+    current === "eigen" ? text(f, "meta.ctaLabel", "Button-Text", { placeholder: "z. B. Jetzt anmelden" }) : null,
+    current === "eigen" ? linkOrFile(f, "meta.ctaUrl", "Button führt zu", "dokumente", "Webadresse (https://…) oder eine Seite dieser Website (z. B. /geschichte).") : null,
+  ];
+}
+
 function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
   let base = n.version;
+  let customButton = Boolean(n.meta.ctaLabel || n.meta.ctaUrl);
   const del = h(
     "button",
     {
@@ -175,8 +206,7 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
         checkbox(f, "meta.draft", "Entwurf (auf der Website noch nicht sichtbar)"),
         image(f, "meta.image", "Bild (optional)", { dir: "news", optional: true }),
         f.get("meta.image") ? text(f, "meta.imageAlt", "Bildbeschreibung", { hint: "Kurz beschreiben, was zu sehen ist (für Google und blinde Menschen)." }) : null,
-        text(f, "meta.ctaLabel", "Button-Text (optional)", { placeholder: "z. B. Jetzt anmelden", hint: "Zeigt unter dem Text einen Button. Leer lassen für keinen Button." }),
-        linkOrFile(f, "meta.ctaUrl", "Button führt zu", "dokumente", "Webadresse (https://…), eine Seite dieser Website (z. B. /geschichte) oder eine hochgeladene PDF-Datei."),
+        ...newsButtonFields(f, () => customButton, (v) => (customButton = v)),
       ],
       async (meta, body) => {
         const r = await api.putNews(n.slug, meta, body, base);

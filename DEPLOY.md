@@ -37,7 +37,7 @@ docker logs swag 2>&1 | grep emerg                                              
 From a browser:
 - `https://hofchilbi.<domain>/` → placeholder page "Hofchilbi Wil – Neue Website im Aufbau", no login.
 - `https://chilbiredaktion.<domain>/` → tinyauth login, then the Redaktion (menu: Allgemein, then Start,
-  Geschichte, Impressionen, Kontakt with their subcategories, Impressum, Verlauf).
+  Geschichte, Impressionen, Kontakt with their subcategories, Impressum, Medien, Verlauf).
 
 If something fails: send the operator the failing command, its output and
 `journalctl -u hofchilbi-image -u docker-hofchilbi -u docker-hofchilbi-redaktion -n 80`.

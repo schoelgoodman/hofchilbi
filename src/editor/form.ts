@@ -1,5 +1,6 @@
 import { ApiError, api, thumb } from "./api.ts";
 import { clone, h, toast } from "./dom.ts";
+import { pickMedia } from "./mediaBrowser.ts";
 
 /**
  * A working copy of one content file. Fields are bound to a path ("links.helfer",
@@ -10,6 +11,13 @@ type Path = (string | number)[];
 
 export function parsePath(p: string): Path {
   return p.split(".").map((s) => (/^\d+$/.test(s) ? Number(s) : s));
+}
+
+/** Same content = same text, whatever order the keys were set in. */
+function canonical(v: unknown): string {
+  return JSON.stringify(v, (_k, x) =>
+    x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x,
+  );
 }
 
 export class Form<T = any> {
@@ -23,7 +31,7 @@ export class Form<T = any> {
 
   constructor(data: T) {
     this.draft = clone(data);
-    this.original = JSON.stringify(data);
+    this.original = canonical(data);
   }
 
   get(path: string): any {
@@ -50,11 +58,11 @@ export class Form<T = any> {
   }
 
   dirty(): boolean {
-    return JSON.stringify(this.draft) !== this.original;
+    return canonical(this.draft) !== this.original;
   }
 
   markSaved(): void {
-    this.original = JSON.stringify(this.draft);
+    this.original = canonical(this.draft);
     this.errors = {};
     this.onDirty(false);
   }
@@ -166,6 +174,18 @@ export function image(form: Form, path: string, label: string, o: ImageOpts): HT
         },
         value ? "Bild ersetzen" : "Bild hochladen",
       ),
+      h(
+        "button",
+        {
+          type: "button",
+          class: "btn btn--ghost",
+          onclick: async () => {
+            const p = await pickMedia("image", o.dir);
+            if (p) form.set(path, p, true);
+          },
+        },
+        "Aus Medien wählen",
+      ),
       o.optional && value
         ? h("button", { type: "button", class: "btn btn--ghost", onclick: () => form.set(path, undefined, true) }, "Entfernen")
         : null,
@@ -175,31 +195,86 @@ export function image(form: Form, path: string, label: string, o: ImageOpts): HT
   );
 }
 
-/** A link that can also be an uploaded PDF (e.g. the Gönner letter). */
+/** Per form + field: which of the two choices is open, and the value of the other one. */
+const linkChoices = new WeakMap<Form, Map<string, { mode: "file" | "web"; other?: unknown }>>();
+
+/**
+ * A target that is either an uploaded PDF or a web address (e.g. the Gönner letter). Editors see
+ * the file's name, never its path. Switching back and forth keeps what was entered.
+ */
 export function linkOrFile(form: Form, path: string, label: string, dir: string, hint?: string): HTMLElement {
   const value = String(form.get(path) ?? "");
-  const isFile = value.startsWith("media/");
-  const field = text(form, path, label, { type: "text", hint: hint ?? "Webadresse (https://…) oder eine hochgeladene PDF-Datei." });
-  field.append(
-    h(
-      "div",
-      { class: "row" },
-      isFile ? h("a", { href: `/${value}`, target: "_blank", rel: "noopener", class: "btn btn--ghost" }, "Aktuelle Datei ansehen") : null,
-      h(
-        "button",
-        {
-          type: "button",
-          class: "btn",
-          onclick: async () => {
-            const [p] = await pickAndUpload(dir, "application/pdf");
-            if (p) form.set(path, p, true);
-          },
-        },
-        "PDF hochladen",
-      ),
-    ),
+  const choices = linkChoices.get(form) ?? new Map<string, { mode: "file" | "web"; other?: unknown }>();
+  linkChoices.set(form, choices);
+  const choice = choices.get(path) ?? { mode: "web" as const };
+  if (value) choice.mode = value.startsWith("media/") ? "file" : "web";
+  choices.set(path, choice);
+  const isFile = choice.mode === "file";
+  const err = form.errors[path];
+  const id = `f-${path.replace(/\./g, "-")}`;
+
+  const radio = (mode: "file" | "web", text_: string) => {
+    const input = h("input", { type: "radio", name: id, checked: choice.mode === mode });
+    input.addEventListener("change", () => {
+      const current = form.get(path);
+      const other = choice.other;
+      choice.other = current;
+      choice.mode = mode;
+      form.set(path, other, true);
+    });
+    return h("label", {}, input, ` ${text_}`);
+  };
+
+  const pick = h(
+    "button",
+    {
+      type: "button",
+      class: "btn btn--ghost",
+      onclick: async () => {
+        const p = await pickMedia("pdf", dir);
+        if (p) form.set(path, p, true);
+      },
+    },
+    "Aus Medien wählen",
   );
-  return field;
+  const upload = h(
+    "button",
+    {
+      type: "button",
+      class: "btn",
+      onclick: async () => {
+        const [p] = await pickAndUpload(dir, "application/pdf");
+        if (p) form.set(path, p, true);
+      },
+    },
+    value.startsWith("media/") ? "PDF ersetzen" : "PDF hochladen",
+  );
+
+  let control: HTMLElement;
+  if (isFile) {
+    control = h(
+      "div",
+      { class: "filechoice" },
+      value ? h("strong", {}, value.split("/").at(-1)) : h("span", { class: "muted" }, "Noch keine Datei"),
+      h("div", { class: "row" }, value ? h("a", { href: `/${value}`, target: "_blank", rel: "noopener", class: "btn btn--ghost" }, "Ansehen") : null, upload, pick),
+    );
+  } else {
+    const input = h("input", { type: "text", id, placeholder: "https://…", "aria-label": `${label}: Webadresse` });
+    input.value = value;
+    if (err) input.setAttribute("aria-invalid", "true");
+    input.addEventListener("input", () => form.set(path, input.value.trim() === "" ? undefined : input.value));
+    control = input;
+  }
+
+  return h(
+    "div",
+    { class: `field${err ? " field--error" : ""}`, "data-path": path },
+    h("span", { class: "label" }, label),
+    h("div", { class: "choice", role: "radiogroup", "aria-label": label }, radio("file", "Datei (PDF)"), radio("web", "Webadresse")),
+    control,
+    !isFile && hint ? h("small", { class: "hint" }, hint) : null,
+    err ? h("small", { class: "error" }, err) : null,
+  );
 }
 
 /** Which list items are expanded, by path; survives re-renders after add/move/upload. */

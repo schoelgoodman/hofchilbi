@@ -28,7 +28,7 @@ z.config({
  *   anzapfer.yaml    all Anzapfer by year (the newest is shown on Start)
  *   timeline.yaml    milestones on the page Geschichte (optional file)
  *   team.yaml        group photo and team members
- *   galleries.yaml   photo galleries by year
+ *   galleries.yaml   photo galleries by year (written by the Immich sync, not by editors)
  *   news/*.md        news posts (frontmatter + Markdown)
  *   pages/*.md       free-text pages (Geschichte)
  *   media/           uploaded files, referenced as "media/<file>"
@@ -172,13 +172,16 @@ export const NewsFrontmatter = z
     date: IsoDate,
     image: OptionalMedia,
     imageAlt: z.string().optional(),
+    /** Use one of the site-wide buttons (links set on Start) instead of an own label and link. */
+    ctaTarget: z.enum(["helfer", "goenner"]).optional(),
     /** Optional call-to-action button below the text. */
     ctaLabel: z.string().trim().max(40, "Höchstens 40 Zeichen").optional(),
     ctaUrl: CtaLink.optional(),
     draft: z.boolean().default(false),
   })
   .refine((n) => !n.ctaLabel || n.ctaUrl, { message: "Wohin soll der Button führen?", path: ["ctaUrl"] })
-  .refine((n) => !n.ctaUrl || n.ctaLabel, { message: "Bitte einen Button-Text eingeben.", path: ["ctaLabel"] });
+  .refine((n) => !n.ctaUrl || n.ctaLabel, { message: "Bitte einen Button-Text eingeben.", path: ["ctaLabel"] })
+  .refine((n) => !n.ctaTarget || (!n.ctaLabel && !n.ctaUrl), { message: "Entweder ein gemeinsamer oder ein eigener Button.", path: ["ctaTarget"] });
 export type NewsMeta = z.infer<typeof NewsFrontmatter>;
 
 export const PageFrontmatter = z.object({

@@ -245,7 +245,7 @@ const IMAGE_EXT = /\.(jpe?g|png|webp|avif|gif|svg)$/i;
 
 /** Fields that are links (may point to a PDF) rather than images. */
 function isLinkField(p: string): boolean {
-  return /(^|\.)(links|contact|social)\.[a-z]+$/.test(p) || /(^|\.)url$/.test(p);
+  return /(^|\.)(links|contact|social)\.[a-z]+$/.test(p) || /(^|\.)(url|ctaUrl)$/.test(p);
 }
 
 export function slugify(s: string): string {

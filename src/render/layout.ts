@@ -13,6 +13,11 @@ export interface Ctx {
   ogImage: string;
 }
 
+/** Web addresses and PDFs open in a new tab. */
+export function linkAttrs(url: string): Raw | "" {
+  return /^https?:/.test(url) || url.endsWith(".pdf") ? html` rel="noopener" target="_blank"` : "";
+}
+
 export const NAV = [
   { href: "/", label: "Start" },
   { href: "/geschichte", label: "Geschichte" },
@@ -87,7 +92,7 @@ async function siteHeader(ctx: Ctx, current: string): Promise<Raw> {
       ${await headerPartner(ctx)}
     </div>
     <nav class="header__nav" aria-label="Hauptnavigation"><ul>${navLinks(current)}</ul></nav>
-    <a class="button button--sm header__cta" href="${await ctx.images.href(site.links.helfer)}"${/^https?:/.test(site.links.helfer) ? html` rel="noopener" target="_blank"` : ""}>Helfer werden</a>
+    <a class="button button--sm header__cta" href="${await ctx.images.href(site.links.helfer)}"${linkAttrs(site.links.helfer)}>Helfer werden</a>
     <button class="menu-button" type="button" data-nav-open aria-controls="nav" aria-expanded="false" hidden><span></span><span class="visually-hidden">Navigation öffnen</span></button>
   </div>
 </header>`;
@@ -116,8 +121,8 @@ async function navOverlay(ctx: Ctx, current: string): Promise<Raw> {
   </div>
   <ul class="nav__links">${navLinks(current)}</ul>
   <div class="nav__cta">
-    <a class="button button--dark" href="${await ctx.images.href(site.links.helfer)}"${/^https?:/.test(site.links.helfer) ? html` rel="noopener" target="_blank"` : ""}>Helfer werden</a>
-    <a class="button button--dark" href="${await ctx.images.href(goenner)}"${/^https?:/.test(goenner) || goenner.endsWith(".pdf") ? html` rel="noopener" target="_blank"` : ""}>Gönner werden</a>
+    <a class="button button--dark" href="${await ctx.images.href(site.links.helfer)}"${linkAttrs(site.links.helfer)}>Helfer werden</a>
+    <a class="button button--dark" href="${await ctx.images.href(goenner)}"${linkAttrs(goenner)}>Gönner werden</a>
   </div>
   ${socials(ctx, "black")}
   <img class="nav__skyline" src="${ctx.assets.svg["skyline-outline"]}" alt="" width="1935" height="210">

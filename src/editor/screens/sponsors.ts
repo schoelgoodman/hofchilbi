@@ -31,8 +31,8 @@ export function sponsorsScreen(ctx: Ctx): HTMLElement {
             "div",
             {},
             text(f, "presenting.name", "Name"),
-            image(f, "presenting.logo", "Logo (farbig, für die Sponsorenliste)", { dir: "logos" }),
-            image(f, "presenting.logoWhite", "Logo weiss (oben auf dem Startbild)", { dir: "logos", optional: true, dark: true }),
+            image(f, "presenting.logo", "Logo farbig (Abschnitt «Unsere Partner»)", { dir: "logos" }),
+            image(f, "presenting.logoWhite", "Logo weiss (auf dunklem Grund: Kopfzeile und Fusszeile)", { dir: "logos", optional: true, dark: true }),
             text(f, "presenting.url", "Webseite", { type: "url" }),
             h("button", { type: "button", class: "btn btn--ghost", onclick: () => f.set("presenting", undefined, true) }, "Presenting-Partner entfernen"),
           )

@@ -18,3 +18,10 @@ test("news CTA: no scripts or other schemes", () => {
     assert.ok(!NewsFrontmatter.safeParse({ ...base, ctaLabel: "Los", ctaUrl }).success, ctaUrl);
   }
 });
+
+test("news CTA: a site-wide button needs no label or link of its own", () => {
+  assert.ok(NewsFrontmatter.safeParse({ ...base, ctaTarget: "helfer" }).success);
+  assert.ok(NewsFrontmatter.safeParse({ ...base, ctaTarget: "goenner" }).success);
+  assert.ok(!NewsFrontmatter.safeParse({ ...base, ctaTarget: "startseite" }).success);
+  assert.ok(!NewsFrontmatter.safeParse({ ...base, ctaTarget: "helfer", ctaLabel: "Los", ctaUrl: "/geschichte" }).success);
+});

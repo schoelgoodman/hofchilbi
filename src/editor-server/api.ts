@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import type http from "node:http";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +9,7 @@ import { readStatus } from "../render/build.ts";
 import { serveStatic } from "../server/static.ts";
 import { History } from "./git.ts";
 import { immichConfigFromEnv, ImmichSync } from "./immich.ts";
+import { assertDeletable, isManagedMedia, listMedia } from "./media.ts";
 import { parseFrontmatter } from "../content/load.ts";
 import { areaLabel, DOCS, HttpError, pageLabel, PAGES, siteChange, Store, type DocName, type PageName } from "./store.ts";
 import { MAX_UPLOAD, processUpload } from "./upload.ts";
@@ -54,6 +55,8 @@ function json(res: http.ServerResponse, status: number, data: unknown): true {
   res.end(JSON.stringify(data));
   return true;
 }
+
+const FILE_DELETED = "Datei gelöscht: ";
 
 /** Entries written before the wording changed. */
 function friendly(message: string): string {
@@ -116,6 +119,7 @@ export class EditorApi {
       if (r && m === "PUT") {
         const name = r[1]! as DocName;
         if (!(name in DOCS)) throw new HttpError(404, "Unbekannt");
+        if (name === "galleries") throw new HttpError(403, "Die Galerien kommen aus Immich.");
         const body = await readJson(req);
         const before = name === "site" ? (await this.store.getDoc("site")).data : null;
         const v = await this.store.putDoc(name, body.data, body.base);
@@ -165,6 +169,16 @@ export class EditorApi {
         return json(res, 201, up);
       }
 
+      if (p === "/api/media" && m === "GET") return json(res, 200, await listMedia(this.store));
+      if (p === "/api/media" && m === "DELETE") {
+        const file = url.searchParams.get("path") ?? "";
+        await assertDeletable(this.store, file);
+        await rm(path.join(this.store.dir, file));
+        // Nothing used it, so the website does not change: no rebuild.
+        const hash = await this.history.commit(`${FILE_DELETED}${path.basename(file)}`);
+        return json(res, 200, { hash, file });
+      }
+
       if (p === "/api/thumb" && m === "GET") {
         await this.thumb(url, res);
         return true;
@@ -211,9 +225,10 @@ export class EditorApi {
     }
   }
 
-  /** Label of a file that can be restored on its own. Immich owns the galleries while it is on. */
+  /** Label of a file that can be restored on its own. Immich owns the galleries. */
   private restorable(file: string): string | null {
-    if (file === DOCS.galleries.file && this.immich.status.enabled) return null;
+    if (file === DOCS.galleries.file) return null;
+    if (isManagedMedia(file)) return `Datei ${path.basename(file)}`;
     return areaLabel(file);
   }
 
@@ -235,7 +250,20 @@ export class EditorApi {
       }
       entries.push({ hash: e.hash, date: e.date, message: friendly(e.message), area });
     }
-    return { entries, more: log.length > PAGE, deleted: skip ? [] : await this.deletedNews() };
+    return { entries, more: log.length > PAGE, deleted: skip ? [] : await this.deletedNews(), deletedFiles: skip ? [] : await this.deletedFiles() };
+  }
+
+  /** Files deleted under «Medien» and not brought back since. Not what a sync or a restore removed. */
+  private async deletedFiles() {
+    const seen = new Set<string>();
+    const out = [];
+    for (const d of await this.history.deletions("media", 30, `^${FILE_DELETED}`)) {
+      if (seen.has(d.file) || !isManagedMedia(d.file)) continue;
+      seen.add(d.file);
+      if (await stat(path.join(this.store.dir, d.file)).then(() => true, () => false)) continue;
+      out.push({ hash: d.hash, date: d.date, file: d.file, title: path.basename(d.file) });
+    }
+    return out;
   }
 
   /** News that were deleted and not brought back since. */
