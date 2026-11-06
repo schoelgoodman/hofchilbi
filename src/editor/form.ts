@@ -1,5 +1,5 @@
 import { ApiError, api, thumb } from "./api.ts";
-import { clone, confirmDialog, h, toast } from "./dom.ts";
+import { clone, h, toast } from "./dom.ts";
 
 /**
  * A working copy of one content file. Fields are bound to a path ("links.helfer",
@@ -18,6 +18,8 @@ export class Form<T = any> {
   errors: Record<string, string> = {};
   onStructure: () => void = () => {};
   onDirty: (dirty: boolean) => void = () => {};
+  /** Set when the content file is spread over several screens. */
+  where?: (path: string) => string;
 
   constructor(data: T) {
     this.draft = clone(data);
@@ -203,6 +205,10 @@ export function linkOrFile(form: Form, path: string, label: string, dir: string,
 /** Which list items are expanded, by path; survives re-renders after add/move/upload. */
 const openItems = new Map<string, boolean>();
 
+function forgetOpen(path: string): void {
+  for (const k of [...openItems.keys()]) if (k.startsWith(`${path}.`)) openItems.delete(k);
+}
+
 export interface ListOpts<I> {
   addLabel: string;
   newItem: () => I;
@@ -245,9 +251,19 @@ export function list<I>(form: Form, path: string, label: string, render: (itemPa
               class: "icon icon--danger",
               title: "Löschen",
               "aria-label": "Löschen",
-              onclick: async (e: Event) => {
+              onclick: (e: Event) => {
                 e.preventDefault();
-                if (await confirmDialog(`«${o.itemTitle(item, i) || "Eintrag"}» entfernen?`, "Entfernen")) setItems(items.filter((_, j) => j !== i));
+                forgetOpen(path);
+                setItems(items.filter((_, j) => j !== i));
+                // Only the working copy so far, so no confirmation: «Rückgängig» or leaving without saving undoes it.
+                toast(`«${o.itemTitle(item, i) || "Eintrag"}» entfernt. Endgültig erst mit «Speichern».`, "ok", {
+                  label: "Rückgängig",
+                  run: () => {
+                    const now = (form.get(path) as I[] | undefined) ?? [];
+                    forgetOpen(path);
+                    setItems([...now.slice(0, i), item, ...now.slice(i)]);
+                  },
+                });
               },
             },
             "✕",
@@ -266,7 +282,7 @@ export function list<I>(form: Form, path: string, label: string, render: (itemPa
       class: "btn",
       onclick: () => {
         // Indexes shift: forget open states of this list, open only the new item.
-        for (const k of [...openItems.keys()]) if (k.startsWith(`${path}.`)) openItems.delete(k);
+        forgetOpen(path);
         openItems.set(`${path}.${o.addAtTop ? 0 : items.length}`, true);
         setItems(o.addAtTop ? [o.newItem(), ...items] : [...items, o.newItem()]);
       },
@@ -320,7 +336,14 @@ export function handleSaveError(err: unknown, form?: Form): void {
     if (err.status === 422 && form && err.details) {
       form.errors = err.details;
       form.onStructure();
-      document.querySelector(".field--error, .item--error")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const marked = document.querySelector(".field--error, .item--error");
+      marked?.scrollIntoView({ behavior: "smooth", block: "center" });
+      // The field is on another screen of the same content file: say where.
+      if (!marked && form.where) {
+        const areas = [...new Set(Object.keys(err.details).map(form.where))].join(", ");
+        toast(`Speichern geht erst, wenn im Bereich ${areas} alles korrekt ausgefüllt ist.`, "error");
+        return;
+      }
     }
     toast(err.message, "error");
     return;

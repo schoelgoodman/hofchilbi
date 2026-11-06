@@ -19,6 +19,8 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
 - One image, two containers: `hofchilbi` (`ROLE=site`, builds + serves, content mounted read-only)
   and `hofchilbi-redaktion` (`ROLE=editor`, behind TinyAuth + `X-Hofchilbi-Key` header from nginx).
 - Site builds go to `site/build-*`, then `site/current` is swapped atomically (`src/render/publish.ts`).
+- Editor menu mirrors the website: pages are main entries, what appears on them sits underneath
+  (`ROUTES` in `src/editor/main.ts`). `site.yaml` is spread over several screens (`siteArea`).
 - Editor writes require header `X-Hofchilbi-Editor: 1` and a matching Origin (`src/server/access.ts`).
 
 ## Security model (Phase 4)

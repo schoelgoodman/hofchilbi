@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import sharp from "sharp";
 import { History } from "./git.ts";
-import { HttpError, Store, version } from "./store.ts";
+import { areaLabel, HttpError, siteChange, Store, version } from "./store.ts";
 import { processUpload, sniff, uploadDir } from "./upload.ts";
 
 async function tmp(): Promise<string> {
@@ -111,6 +111,72 @@ test("history: commit, log and restore an older state as a new commit", async ()
   await h.restore(log[1]!.hash);
   assert.equal(await readFile(path.join(dir, "site.yaml"), "utf8"), "a: 1\n");
   await assert.rejects(stat(path.join(dir, "extra.yaml")));
-  assert.match((await h.log())[0]!.message, /^Wiederhergestellt/);
+  assert.match((await h.log())[0]!.message, /^Ganze Website zurückgeholt/);
   await assert.rejects(h.restore("--help"));
+});
+
+async function historyRepo(): Promise<{ dir: string; h: History }> {
+  const dir = await tmp();
+  const h = new History(dir);
+  await h.init();
+  return { dir, h };
+}
+
+test("history: uploads are not listed, entries know their files", async () => {
+  const { dir, h } = await historyRepo();
+  await writeFile(path.join(dir, "team.yaml"), "members: []\n");
+  await h.commit("Team gespeichert");
+  await mkdir(path.join(dir, "media"));
+  await writeFile(path.join(dir, "media/a.jpg"), "x");
+  await h.commit("Datei hochgeladen: media/a.jpg");
+  const log = await h.log();
+  assert.deepEqual(log.map((e) => e.message), ["Team gespeichert", "Stand beim Start der Redaktion"]);
+  assert.deepEqual(log[0]!.files, [{ status: "A", file: "team.yaml" }]);
+});
+
+test("restoreFile: only that file changes, referenced uploads come back too", async () => {
+  const { dir, h } = await historyRepo();
+  await mkdir(path.join(dir, "media"));
+  await writeFile(path.join(dir, "media/a.jpg"), "x");
+  await writeFile(path.join(dir, "team.yaml"), "groupPhoto: media/a.jpg\n");
+  await writeFile(path.join(dir, "timeline.yaml"), "entries: []\n");
+  const old = await h.commit("Stand A");
+  await writeFile(path.join(dir, "team.yaml"), "members: []\n");
+  await writeFile(path.join(dir, "timeline.yaml"), "entries: [neu]\n");
+  await rm(path.join(dir, "media/a.jpg"));
+  await h.commit("Stand B");
+
+  await h.restoreFile(old, "team.yaml", "Team");
+  assert.equal(await readFile(path.join(dir, "team.yaml"), "utf8"), "groupPhoto: media/a.jpg\n");
+  assert.equal(await readFile(path.join(dir, "timeline.yaml"), "utf8"), "entries: [neu]\n");
+  assert.equal(await readFile(path.join(dir, "media/a.jpg"), "utf8"), "x");
+  assert.match((await h.log())[0]!.message, /^Zurückgeholt: Team \(Stand vom /);
+  await assert.rejects(h.restoreFile(old, "gibt-es-nicht.yaml", "x"));
+  await assert.rejects(h.restoreFile("not-a-hash", "team.yaml", "Team"));
+});
+
+test("restoreFile: a commit that deleted the file brings back the version before it", async () => {
+  const { dir, h } = await historyRepo();
+  await mkdir(path.join(dir, "news"));
+  await writeFile(path.join(dir, "news/a.md"), "---\ntitle: A\n---\nText");
+  await h.commit("News angelegt");
+  await rm(path.join(dir, "news/a.md"));
+  const del = await h.commit("News gelöscht: A");
+  assert.deepEqual((await h.deletions("news")).map((d) => [d.hash, d.file]), [[del, "news/a.md"]]);
+  await h.restoreFile(del, "news/a.md", "diese News");
+  assert.equal(await readFile(path.join(dir, "news/a.md"), "utf8"), "---\ntitle: A\n---\nText");
+});
+
+test("areaLabel: only content files that make sense on their own", () => {
+  assert.equal(areaLabel("team.yaml"), "Team");
+  assert.equal(areaLabel("pages/geschichte.md"), "Geschichte");
+  assert.equal(areaLabel("news/2027-01-01-fest.md"), "diese News");
+  for (const bad of [".gitignore", "media/a.jpg", "pages/geheim.md", "../team.yaml", "news/../site.yaml"]) assert.equal(areaLabel(bad), null);
+});
+
+test("siteChange: names the screens a change of site.yaml belongs to", () => {
+  const base = { event: { days: ["2027-07-23"] }, hero: { image: "a" }, pageImages: { geschichte: "g", kontakt: "k" } };
+  assert.equal(siteChange(base, structuredClone(base)), "Allgemein gespeichert");
+  assert.equal(siteChange(base, { ...base, hero: { image: "b" } }), "Start geändert");
+  assert.equal(siteChange(base, { ...base, event: { days: [] }, pageImages: { geschichte: "x", kontakt: "k" } }), "Allgemein, Titelbild Geschichte geändert");
 });

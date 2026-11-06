@@ -5,6 +5,23 @@ import { promisify } from "node:util";
 
 const run = promisify(execFile);
 
+/** Uploads get a commit of their own, but change nothing until a save uses them: not shown in the history. */
+const UPLOAD_PREFIX = "Datei hochgeladen: ";
+
+export interface LogEntry {
+  hash: string;
+  date: string;
+  message: string;
+  /** Files of this commit: [status letter, path]. */
+  files: { status: string; file: string }[];
+}
+
+/** "2026-11-06T14:32:10+01:00" → "6.11.2026, 14:32" (time as stored in the commit). */
+function readableDate(iso: string): string {
+  const [, y, m, d, time] = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2})/.exec(iso) ?? [];
+  return y ? `${Number(d)}.${Number(m)}.${y}, ${time}` : iso;
+}
+
 /**
  * Version history of the content folder: its own git repository (never pushed anywhere).
  * All git calls run one after another; the identity and safe.directory are passed per call so
@@ -54,26 +71,70 @@ export class History {
     });
   }
 
-  /** Commits everything that changed (all edits go through the editor, one at a time). */
-  commit(message: string): Promise<void> {
+  /** Commits everything that changed (all edits go through the editor, one at a time). Returns HEAD. */
+  commit(message: string): Promise<string> {
     return this.serial(async () => {
       await this.git(["add", "-A"]);
       const pending = await this.git(["status", "--porcelain"]);
       if (pending.trim()) await this.git(["commit", "-q", "-m", message]);
+      return (await this.git(["rev-parse", "HEAD"])).trim();
     });
   }
 
-  log(limit = 60): Promise<{ hash: string; date: string; message: string }[]> {
+  /** Newest first, without pure uploads. `skip` pages through older entries. */
+  log(limit = 60, skip = 0): Promise<LogEntry[]> {
     return this.serial(async () => {
-      const out = await this.git(["log", `-n${limit}`, "--format=%H%x09%cI%x09%s"]).catch(() => "");
+      const out = await this.git([
+        "log",
+        `-n${limit}`,
+        `--skip=${skip}`,
+        `--grep=^${UPLOAD_PREFIX}`,
+        "--invert-grep",
+        "--no-renames",
+        "--name-status",
+        "--format=%x01%H%x09%cI%x09%s",
+      ]).catch(() => "");
       return out
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => {
-          const [hash, date, ...msg] = line.split("\t");
-          return { hash: hash!, date: date!, message: msg.join("\t") };
+        .split("\x01")
+        .filter((c) => c.trim())
+        .map((chunk) => {
+          const [head, ...rest] = chunk.split("\n");
+          const [hash, date, ...msg] = head!.split("\t");
+          const files = rest.filter(Boolean).map((l) => {
+            const [status, file] = l.split("\t");
+            return { status: status!, file: file! };
+          });
+          return { hash: hash!, date: date!, message: msg.join("\t"), files };
         });
     });
+  }
+
+  /** The newest commit that touched this file. */
+  latestOf(file: string): Promise<string> {
+    return this.serial(async () => (await this.git(["log", "-n1", "--format=%H", "--", file]).catch(() => "")).trim());
+  }
+
+  /** Files once deleted under `dir`, newest deletion first (may exist again by now: the caller checks). */
+  deletions(dir: string, limit = 30): Promise<{ hash: string; date: string; file: string }[]> {
+    return this.serial(async () => {
+      const out = await this.git(["log", `-n${limit}`, "--diff-filter=D", "--no-renames", "--name-only", "--format=%x01%H%x09%cI", "--", dir]).catch(() => "");
+      const found: { hash: string; date: string; file: string }[] = [];
+      for (const chunk of out.split("\x01")) {
+        const [head, ...files] = chunk.split("\n");
+        const [hash, date] = (head ?? "").split("\t");
+        if (hash && date) for (const file of files.filter(Boolean)) found.push({ hash, date, file });
+      }
+      return found;
+    });
+  }
+
+  /** Contents of a file in a commit, or null if it was not there. */
+  fileAt(rev: string, file: string): Promise<string | null> {
+    return this.serial(() => this.show(rev, file));
+  }
+
+  private show(rev: string, file: string): Promise<string | null> {
+    return this.git(["show", `${rev}:${file}`]).catch(() => null);
   }
 
   /** Brings the whole content back to the state of `hash`, as a new commit (nothing is lost). */
@@ -85,8 +146,35 @@ export class History {
       await this.git(["restore", "--source", hash, "--staged", "--worktree", "--", "."]);
       await this.git(["add", "-A"]);
       const pending = await this.git(["status", "--porcelain"]);
-      if (pending.trim()) await this.git(["commit", "-q", "-m", `Wiederhergestellt: Stand vom ${date.slice(0, 16).replace("T", " ")}`]);
+      if (pending.trim()) await this.git(["commit", "-q", "-m", `Ganze Website zurückgeholt: Stand vom ${readableDate(date)}`]);
       return date;
+    });
+  }
+
+  /**
+   * Brings one file back as it was in `hash`, or just before `hash` if that commit deleted it.
+   * Everything else stays as it is. Uploads it refers to are brought back too (a full restore to
+   * an older state removes newer files), otherwise the site build would fail on them.
+   */
+  restoreFile(hash: string, file: string, label: string): Promise<void> {
+    if (!/^[0-9a-f]{7,40}$/.test(hash)) return Promise.reject(new Error("bad hash"));
+    return this.serial(async () => {
+      let source = hash;
+      let text = await this.show(source, file);
+      if (text === null) {
+        source = `${hash}^`;
+        text = await this.show(source, file);
+      }
+      if (text === null) throw new Error("not in this commit");
+      const date = (await this.git(["show", "-s", "--format=%cI", hash])).trim();
+      await this.git(["restore", "--source", source, "--staged", "--worktree", "--", file]);
+      for (const ref of new Set(text.match(/media\/[A-Za-z0-9._/-]+/g) ?? [])) {
+        const missing = await stat(path.join(this.dir, ref)).then(() => false, () => true);
+        if (missing) await this.git(["restore", "--source", source, "--staged", "--worktree", "--", ref]).catch(() => undefined);
+      }
+      await this.git(["add", "-A"]);
+      const pending = await this.git(["status", "--porcelain"]);
+      if (pending.trim()) await this.git(["commit", "-q", "-m", `Zurückgeholt: ${label} (Stand vom ${readableDate(date)})`]);
     });
   }
 }

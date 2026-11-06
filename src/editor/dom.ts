@@ -24,19 +24,36 @@ function append(el: Element, children: Child[]): void {
 }
 
 let toastTimer: number | undefined;
-export function toast(message: string, kind: "ok" | "error" = "ok"): void {
+export function toast(message: string, kind: "ok" | "error" = "ok", action?: { label: string; run: () => void }): void {
   let el = document.getElementById("toast");
   if (!el) {
     el = h("div", { id: "toast", role: "status", "aria-live": "polite" });
     document.body.append(el);
   }
   el.textContent = message;
+  if (action) {
+    el.append(
+      " ",
+      h(
+        "button",
+        {
+          type: "button",
+          class: "toast__action",
+          onclick: () => {
+            el!.classList.remove("is-visible");
+            action.run();
+          },
+        },
+        action.label,
+      ),
+    );
+  }
   el.className = `toast toast--${kind} is-visible`;
   clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => el!.classList.remove("is-visible"), kind === "error" ? 8000 : 3500);
+  toastTimer = window.setTimeout(() => el!.classList.remove("is-visible"), action ? 10000 : kind === "error" ? 8000 : 3500);
 }
 
-export function confirmDialog(message: string, okLabel = "Löschen"): Promise<boolean> {
+export function confirmDialog(message: string, okLabel = "Löschen", danger = true): Promise<boolean> {
   return new Promise((resolve) => {
     const dialog = h(
       "dialog",
@@ -46,7 +63,7 @@ export function confirmDialog(message: string, okLabel = "Löschen"): Promise<bo
         "div",
         { class: "row row--end" },
         h("button", { type: "button", class: "btn", onclick: () => close(false) }, "Abbrechen"),
-        h("button", { type: "button", class: "btn btn--danger", onclick: () => close(true) }, okLabel),
+        h("button", { type: "button", class: danger ? "btn btn--danger" : "btn btn--primary", onclick: () => close(true) }, okLabel),
       ),
     );
     const close = (v: boolean) => {

@@ -3,6 +3,7 @@ import { confirmDialog, h, toast, announceSaved } from "../dom.ts";
 import { Form, checkbox, handleSaveError, image, linkOrFile, saveBar, text } from "../form.ts";
 import type { MarkdownEditor } from "../markdown.ts";
 import type { Ctx } from "./doc.ts";
+import { siteArea, titleImageField } from "./site.ts";
 
 /** Disposes the Milkdown instance of the previous screen. */
 let activeEditor: MarkdownEditor | null = null;
@@ -10,6 +11,12 @@ export async function disposeEditor(): Promise<void> {
   const e = activeEditor;
   activeEditor = null;
   await e?.destroy().catch(() => undefined);
+}
+
+/** A second content file saved with the same button (the title image lives in site.yaml). */
+interface AlsoSaved {
+  form: Form;
+  save: () => Promise<void>;
 }
 
 /** Form with metadata fields + Milkdown body + save bar. */
@@ -20,24 +27,37 @@ function textEditor(
   fields: (f: Form) => (HTMLElement | null)[],
   save: (meta: unknown, body: string) => Promise<void>,
   extra: HTMLElement[] = [],
+  also?: AlsoSaved,
 ): HTMLElement {
   const form = new Form({ meta, body });
   const metaBox = h("div", { class: "form" });
   const editorBox = h("div", { class: "md" });
+  const dirty = () => form.dirty() || Boolean(also?.form.dirty());
   const bar = saveBar(async () => {
+    let saving: Form = form;
     try {
-      await save(form.draft.meta, form.draft.body);
-      form.markSaved();
-      renderMeta();
+      // Only what changed, so the Verlauf shows what really happened.
+      if (also?.form.dirty()) {
+        saving = also.form;
+        await also.save();
+        also.form.markSaved();
+      }
+      saving = form;
+      if (form.dirty()) {
+        await save(form.draft.meta, form.draft.body);
+        form.markSaved();
+        renderMeta();
+      }
     } catch (err) {
       bar.setDirty(true);
-      handleSaveError(err, form);
+      handleSaveError(err, saving);
     }
   }, extra);
   const renderMeta = () => metaBox.replaceChildren(...fields(form).filter((x): x is HTMLElement => x !== null));
   form.onStructure = renderMeta;
-  form.onDirty = (d) => bar.setDirty(d);
-  ctx.guard(() => form.dirty());
+  form.onDirty = () => bar.setDirty(dirty());
+  if (also) also.form.onDirty = () => bar.setDirty(dirty());
+  ctx.guard(dirty);
   renderMeta();
   // Milkdown is large: loaded only when a text screen opens.
   editorBox.append(h("p", { class: "muted md__loading" }, "Editor wird geladen …"));
@@ -92,6 +112,10 @@ export function newsScreen(ctx: Ctx, slug?: string): HTMLElement {
   const input = h("input", { type: "text", placeholder: "Titel der neuen News", "aria-label": "Titel der neuen News" });
   create.append(input, h("button", { type: "submit", class: "btn btn--primary" }, "+ News anlegen"));
 
+  // Narrow screens: the editor sits below the list, so picking a news must lead there.
+  if (current && matchMedia("(max-width: 1100px)").matches) {
+    requestAnimationFrame(() => document.querySelector(".split .editor")?.scrollIntoView());
+  }
   return h(
     "div",
     { class: "screen" },
@@ -112,11 +136,25 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
       onclick: async () => {
         if (!(await confirmDialog(`News «${n.meta.title}» löschen? Sie lässt sich im Verlauf wiederherstellen.`))) return;
         try {
-          await api.deleteNews(n.slug, base);
+          const { hash, file } = await api.deleteNews(n.slug, base);
           ctx.guard(() => false);
           await ctx.reload();
           location.hash = "#/news";
-          toast("Gelöscht.");
+          announceSaved();
+          toast("Gelöscht.", "ok", {
+            label: "Rückgängig",
+            run: async () => {
+              try {
+                await api.restoreFile(hash, file);
+                announceSaved();
+                await ctx.reload();
+                location.hash = `#/news/${n.slug}`;
+                toast("Die News ist wieder da.");
+              } catch (err) {
+                handleSaveError(err);
+              }
+            },
+          });
         } catch (err) {
           handleSaveError(err);
         }
@@ -164,15 +202,35 @@ export function pageScreen(
   name: string,
   title: string,
   intro: string,
-  opts: { template?: string; extraFields?: (f: Form) => (HTMLElement | null)[] } = {},
+  opts: { template?: string; extraFields?: (f: Form) => (HTMLElement | null)[]; titleImage?: string } = {},
 ): HTMLElement {
   const page = ctx.state.pages[name] ?? { meta: { title }, body: "", version: "" };
   let base = page.version;
+  const titleImage = opts.titleImage;
+  let also: AlsoSaved | undefined;
+  const imageBox = h("div", {});
+  if (titleImage) {
+    const siteForm = new Form(ctx.state.docs.site.data ?? {});
+    siteForm.where = siteArea;
+    const renderImage = () => imageBox.replaceChildren(titleImageField(siteForm, titleImage));
+    siteForm.onStructure = renderImage;
+    renderImage();
+    also = {
+      form: siteForm,
+      save: async () => {
+        const r = await api.putDoc("site", siteForm.draft, ctx.state.docs.site.version);
+        ctx.state.docs.site = { data: structuredClone(siteForm.draft), version: r.version };
+        toast("Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
+        announceSaved();
+      },
+    };
+  }
   return h(
     "div",
     { class: "screen" },
     h("h1", {}, title),
     h("p", { class: "intro" }, intro),
+    imageBox,
     textEditor(
       ctx,
       { title, ...page.meta },
@@ -189,6 +247,8 @@ export function pageScreen(
         toast("Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
         announceSaved();
       },
+      [],
+      also,
     ),
   );
 }
@@ -229,52 +289,5 @@ export function impressumScreen(ctx: Ctx): HTMLElement {
         }),
       ],
     },
-  );
-}
-
-// ---------------------------------------------------------------- Verlauf
-export function historyScreen(ctx: Ctx): HTMLElement {
-  const listEl = h("ol", { class: "history" }, h("li", { class: "muted" }, "Lade …"));
-  api
-    .history()
-    .then((entries) => {
-      listEl.replaceChildren(
-        ...entries.map((e, i) =>
-          h(
-            "li",
-            {},
-            h("div", {}, h("strong", {}, e.message), h("small", {}, new Date(e.date).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" }))),
-            i === 0
-              ? h("span", { class: "muted" }, "aktueller Stand")
-              : h(
-                  "button",
-                  {
-                    type: "button",
-                    class: "btn",
-                    onclick: async () => {
-                      if (!(await confirmDialog("Die ganze Website auf diesen Stand zurücksetzen? Alles danach bleibt im Verlauf und lässt sich wieder herstellen.", "Wiederherstellen"))) return;
-                      try {
-                        await api.restore(e.hash);
-                        toast("Wiederhergestellt. Die Website ist in wenigen Sekunden aktualisiert.");
-                        announceSaved();
-                        await ctx.reload();
-                      } catch (err) {
-                        handleSaveError(err);
-                      }
-                    },
-                  },
-                  "Diesen Stand wiederherstellen",
-                ),
-          ),
-        ),
-      );
-    })
-    .catch((err) => handleSaveError(err));
-  return h(
-    "div",
-    { class: "screen" },
-    h("h1", {}, "Verlauf"),
-    h("p", { class: "intro" }, "Jede Speicherung ist hier festgehalten. Ein alter Stand lässt sich zurückholen; nichts geht dabei verloren."),
-    listEl,
   );
 }

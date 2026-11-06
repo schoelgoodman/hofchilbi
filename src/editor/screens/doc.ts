@@ -16,9 +16,18 @@ type DocName = keyof State["docs"];
  * Screen for one YAML document: intro, form built by `build`, save bar. The form re-renders
  * itself on structural changes (add/remove/move, uploads) and keeps typing focus otherwise.
  */
-export function docScreen(ctx: Ctx, name: DocName, title: string, intro: string, build: (form: Form) => (HTMLElement | null)[]): HTMLElement {
+export function docScreen(
+  ctx: Ctx,
+  name: DocName,
+  title: string,
+  intro: string,
+  build: (form: Form) => (HTMLElement | null)[],
+  /** For documents spread over several screens: the screen that shows a field. */
+  where?: (path: string) => string,
+): HTMLElement {
   const doc = ctx.state.docs[name];
   const form = new Form(doc.data ?? {});
+  form.where = where;
   let base = doc.version;
   const body = h("div", { class: "form" });
   const bar = saveBar(async () => {

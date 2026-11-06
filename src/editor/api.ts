@@ -72,16 +72,23 @@ export interface ImmichStatus {
   albums: { year: number; name: string; images: number }[];
 }
 
+export interface HistoryPage {
+  entries: { hash: string; date: string; message: string; area: { file: string; label: string } | null }[];
+  more: boolean;
+  deleted: { hash: string; date: string; file: string; title: string }[];
+}
+
 export const api = {
   state: () => call<State>("GET", "/api/state"),
   putDoc: (name: string, data: unknown, base: string) => call<{ version: string }>("PUT", `/api/doc/${name}`, { data, base }),
   createNews: (title: string) => call<{ slug: string }>("POST", "/api/news", { title }),
   putNews: (slug: string, meta: unknown, body: string, base: string) => call<{ version: string }>("PUT", `/api/news/${slug}`, { meta, body, base }),
-  deleteNews: (slug: string, base: string) => call<object>("DELETE", `/api/news/${slug}?base=${encodeURIComponent(base)}`),
+  deleteNews: (slug: string, base: string) => call<{ hash: string; file: string }>("DELETE", `/api/news/${slug}?base=${encodeURIComponent(base)}`),
   putPage: (name: string, meta: unknown, body: string, base: string) => call<{ version: string }>("PUT", `/api/page/${name}`, { meta, body, base }),
   upload: (dir: string, file: File) =>
     call<{ path: string }>("POST", `/api/upload?dir=${encodeURIComponent(dir)}`, file, { "X-Filename": encodeURIComponent(file.name) }),
-  history: () => call<{ hash: string; date: string; message: string }[]>("GET", "/api/history"),
+  history: (skip = 0) => call<HistoryPage>("GET", `/api/history?skip=${skip}`),
+  restoreFile: (hash: string, file: string) => call<object>("POST", "/api/restore-file", { hash, file }),
   restore: (hash: string) => call<{ date: string }>("POST", "/api/restore", { hash }),
   immichSync: () => call<ImmichStatus>("POST", "/api/immich/sync", {}),
 };

@@ -9,7 +9,8 @@ import { readStatus } from "../render/build.ts";
 import { serveStatic } from "../server/static.ts";
 import { History } from "./git.ts";
 import { immichConfigFromEnv, ImmichSync } from "./immich.ts";
-import { DOCS, HttpError, PAGES, Store, type DocName } from "./store.ts";
+import { parseFrontmatter } from "../content/load.ts";
+import { areaLabel, DOCS, HttpError, pageLabel, PAGES, siteChange, Store, type DocName, type PageName } from "./store.ts";
 import { MAX_UPLOAD, processUpload } from "./upload.ts";
 
 /**
@@ -54,6 +55,14 @@ function json(res: http.ServerResponse, status: number, data: unknown): true {
   return true;
 }
 
+/** Entries written before the wording changed. */
+function friendly(message: string): string {
+  const page = /^Seite gespeichert: ([a-z]+)$/.exec(message)?.[1];
+  if (page && (PAGES as readonly string[]).includes(page)) return `${pageLabel(page as PageName)}: Text geändert`;
+  if (message === "Event & Allgemein gespeichert") return "Allgemein gespeichert";
+  return message.replace(/^Wiederhergestellt: /, "Ganze Website zurückgeholt: ");
+}
+
 export class EditorApi {
   readonly store: Store;
   readonly history: History;
@@ -65,7 +74,7 @@ export class EditorApi {
     this.store = new Store(contentDir);
     this.history = new History(contentDir);
     this.publicUrl = publicUrl;
-    this.immich = new ImmichSync(immichConfigFromEnv(), this.store, (message) => this.saved(message));
+    this.immich = new ImmichSync(immichConfigFromEnv(), this.store, async (message) => void (await this.saved(message)));
   }
 
   async init(): Promise<void> {
@@ -82,9 +91,10 @@ export class EditorApi {
   }
 
   /** Commit + tell the site to rebuild. */
-  private async saved(message: string): Promise<void> {
-    await this.history.commit(message);
+  private async saved(message: string): Promise<string> {
+    const head = await this.history.commit(message);
     await this.store.touch();
+    return head;
   }
 
   /** Returns true if the request was handled. */
@@ -107,8 +117,9 @@ export class EditorApi {
         const name = r[1]! as DocName;
         if (!(name in DOCS)) throw new HttpError(404, "Unbekannt");
         const body = await readJson(req);
+        const before = name === "site" ? (await this.store.getDoc("site")).data : null;
         const v = await this.store.putDoc(name, body.data, body.base);
-        await this.saved(`${DOCS[name].label} gespeichert`);
+        await this.saved(name === "site" ? siteChange(before, (await this.store.getDoc("site")).data) : `${DOCS[name].label} geändert`);
         return json(res, 200, { version: v });
       }
 
@@ -128,15 +139,15 @@ export class EditorApi {
       }
       if (r && m === "DELETE") {
         const title = await this.store.deleteNews(r[1]!, url.searchParams.get("base"));
-        await this.saved(`News gelöscht: ${title.slice(0, 80)}`);
-        return json(res, 200, {});
+        const hash = await this.saved(`News gelöscht: ${title.slice(0, 80)}`);
+        return json(res, 200, { hash, file: `news/${r[1]}.md` });
       }
 
       r = /^\/api\/page\/([a-z]+)$/.exec(p);
       if (r && m === "PUT") {
         const body = await readJson(req);
         const v = await this.store.putPage(r[1]!, body.meta, body.body, body.base);
-        await this.saved(`Seite gespeichert: ${r[1]}`);
+        await this.saved(`${pageLabel(r[1] as PageName)}: Text geändert`);
         return json(res, 200, { version: v });
       }
 
@@ -166,7 +177,21 @@ export class EditorApi {
         return json(res, 202, this.immich.status);
       }
 
-      if (p === "/api/history" && m === "GET") return json(res, 200, await this.history.log());
+      if (p === "/api/history" && m === "GET") return json(res, 200, await this.historyPage(Number(url.searchParams.get("skip")) || 0));
+      if (p === "/api/restore-file" && m === "POST") {
+        const body = await readJson(req);
+        const file = String(body.file ?? "");
+        const hash = String(body.hash ?? "");
+        const label = this.restorable(file);
+        if (!label) throw new HttpError(400, "Dieser Bereich lässt sich nicht einzeln zurückholen.");
+        const news = file.startsWith("news/") ? ((await this.history.fileAt(hash, file)) ?? (await this.history.fileAt(`${hash}^`, file))) : null;
+        const name = news === null ? label : `News «${String((parseFrontmatter(news).data as { title?: string }).title ?? file)}»`;
+        await this.history.restoreFile(hash, file, name).catch(() => {
+          throw new HttpError(400, "Diesen Stand gibt es nicht.");
+        });
+        await this.store.touch();
+        return json(res, 200, {});
+      }
       if (p === "/api/restore" && m === "POST") {
         const body = await readJson(req);
         const date = await this.history.restore(String(body.hash ?? "")).catch(() => {
@@ -184,6 +209,51 @@ export class EditorApi {
       }
       throw err;
     }
+  }
+
+  /** Label of a file that can be restored on its own. Immich owns the galleries while it is on. */
+  private restorable(file: string): string | null {
+    if (file === DOCS.galleries.file && this.immich.status.enabled) return null;
+    return areaLabel(file);
+  }
+
+  /** One page of the Verlauf: entries, the area each could bring back, and deleted news ("bin"). */
+  private async historyPage(skip: number) {
+    const PAGE = 60;
+    const log = await this.history.log(PAGE + 1, skip);
+    const latest = new Map<string, string>();
+    const entries = [];
+    for (const e of log.slice(0, PAGE)) {
+      const content = e.files.filter((f) => !f.file.startsWith("media/"));
+      const only = content.length === 1 && content[0]!.status !== "D" ? content[0]!.file : null;
+      const label = only ? this.restorable(only) : null;
+      let area: { file: string; label: string } | null = null;
+      if (only && label) {
+        if (!latest.has(only)) latest.set(only, await this.history.latestOf(only));
+        // The newest change of a file is what it looks like now: nothing to bring back.
+        if (latest.get(only) !== e.hash) area = { file: only, label };
+      }
+      entries.push({ hash: e.hash, date: e.date, message: friendly(e.message), area });
+    }
+    return { entries, more: log.length > PAGE, deleted: skip ? [] : await this.deletedNews() };
+  }
+
+  /** News that were deleted and not brought back since. */
+  private async deletedNews() {
+    const seen = new Set<string>();
+    const out = [];
+    for (const d of await this.history.deletions("news")) {
+      if (seen.has(d.file)) continue;
+      seen.add(d.file);
+      if (!areaLabel(d.file)) continue;
+      const exists = await stat(path.join(this.store.dir, d.file)).then(() => true, () => false);
+      if (exists) continue;
+      const text = await this.history.fileAt(`${d.hash}^`, d.file);
+      if (text === null) continue;
+      const { data } = parseFrontmatter(text);
+      out.push({ hash: d.hash, date: d.date, file: d.file, title: String((data as { title?: string }).title ?? d.file) });
+    }
+    return out;
   }
 
   private async state() {

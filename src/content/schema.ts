@@ -86,6 +86,8 @@ export const SiteSchema = z.object({
     /** Social preview image (1200×630 is generated from it). Defaults to the hero image. */
     image: OptionalMedia,
   }),
+  /** Only used by the Redaktion itself, never shown on the website. */
+  editor: z.object({ feedbackEmail: z.email().optional() }).optional(),
 });
 export type Site = z.infer<typeof SiteSchema>;
 

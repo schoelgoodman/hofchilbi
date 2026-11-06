@@ -58,27 +58,25 @@ function days(form: Form): HTMLElement {
   );
 }
 
-export function eventScreen(ctx: Ctx): HTMLElement {
-  return docScreen(ctx, "site", "Event & Allgemein", "Datum, Startbild, Links und Kontakt. Das Datum erscheint gross auf der Startseite und bei Google.", (f) => [
+/** site.yaml feeds several screens. Tells where a field is when a save fails on another screen. */
+export function siteArea(path: string): string {
+  if (path.startsWith("pageImages.geschichte")) return "Geschichte";
+  if (path.startsWith("pageImages.impressionen")) return "Impressionen";
+  if (path.startsWith("pageImages.kontakt")) return "Kontakt";
+  if (/^(hero|links|helperCta)(\.|$)/.test(path)) return "Start";
+  return "Allgemein";
+}
+
+const siteScreen = (ctx: Ctx, title: string, intro: string, build: (f: Form) => (HTMLElement | null)[]) =>
+  docScreen(ctx, "site", title, intro, build, siteArea);
+
+export function allgemeinScreen(ctx: Ctx): HTMLElement {
+  return siteScreen(ctx, "Allgemein", "Was für die ganze Website gilt. Das Datum erscheint gross auf der Startseite und bei Google.", (f) => [
     group(
       "Das Fest",
       days(f),
       text(f, "event.label", "Datum anders schreiben (optional)", { hint: "Nur ausfüllen, wenn der Text oben nicht passt, z. B. «Juli 2028 – Datum folgt». Sonst leer lassen." }),
       text(f, "event.location", "Festort", { placeholder: "Hof zu Wil" }),
-    ),
-    group(
-      "Startseite",
-      image(f, "hero.image", "Grosses Startbild", { dir: "bilder", hint: "Querformat, mindestens 2000 Pixel breit. Wird abgedunkelt, damit die weisse Schrift lesbar bleibt." }),
-      linkOrFile(f, "links.goenner", "«Gönner werden» führt zu", "dokumente"),
-      text(f, "links.helfer", "«Helfer werden» führt zu", { type: "url", hint: "Link zum Anmeldeformular (z. B. Microsoft Forms)." }),
-      text(f, "helperCta.title", "Titel im Helfer-Band"),
-      image(f, "helperCta.image", "Bild im Helfer-Band", { dir: "bilder" }),
-    ),
-    group(
-      "Titelbilder der Unterseiten",
-      image(f, "pageImages.geschichte", "Geschichte", { dir: "bilder" }),
-      image(f, "pageImages.impressionen", "Impressionen", { dir: "bilder" }),
-      image(f, "pageImages.kontakt", "Kontakt", { dir: "bilder" }),
     ),
     group(
       "Kontakt & Links",
@@ -93,5 +91,40 @@ export function eventScreen(ctx: Ctx): HTMLElement {
       text(f, "seo.description", "Kurzbeschreibung", { multiline: true, hint: "So erscheint die Seite bei Google. 120–160 Zeichen." }),
       image(f, "seo.image", "Vorschaubild beim Teilen (optional)", { dir: "bilder", optional: true, hint: "Leer: das Startbild wird verwendet." }),
     ),
+    group(
+      "Redaktion",
+      text(f, "editor.feedbackEmail", "E-Mail für Feedback", { type: "email", hint: "Der Link «Feedback» im Menü öffnet eine E-Mail an diese Adresse. Leer: kein Link. Erscheint nicht auf der Website." }),
+    ),
   ]);
+}
+
+export function startScreen(ctx: Ctx): HTMLElement {
+  return siteScreen(ctx, "Start", "Das Startbild, die beiden Buttons und das Helfer-Band. News und Sponsoren haben eigene Bereiche, die Anzapfer stehen unter Geschichte.", (f) => [
+    group(
+      "Startbild",
+      image(f, "hero.image", "Grosses Startbild", { dir: "bilder", hint: "Querformat, mindestens 2000 Pixel breit. Wird abgedunkelt, damit die weisse Schrift lesbar bleibt." }),
+    ),
+    group(
+      "Buttons",
+      linkOrFile(f, "links.goenner", "«Gönner werden» führt zu", "dokumente"),
+      text(f, "links.helfer", "«Helfer werden» führt zu", { type: "url", hint: "Link zum Anmeldeformular (z. B. Microsoft Forms)." }),
+    ),
+    group(
+      "Helfer-Band",
+      text(f, "helperCta.title", "Titel im Helfer-Band"),
+      image(f, "helperCta.image", "Bild im Helfer-Band", { dir: "bilder" }),
+    ),
+  ]);
+}
+
+/** Pages whose only own content is the title image; the rest lives in their subcategories. */
+export const titleImageField = (f: Form, key: string): HTMLElement =>
+  group("Titelbild", image(f, `pageImages.${key}`, "Bild oben auf der Seite", { dir: "bilder", hint: "Querformat. Wird abgedunkelt, darüber steht der Seitentitel." }));
+
+export function impressionenScreen(ctx: Ctx): HTMLElement {
+  return siteScreen(ctx, "Impressionen", "Das Titelbild der Seite. Die Fotos stehen unter Galerien.", (f) => [titleImageField(f, "impressionen")]);
+}
+
+export function kontaktScreen(ctx: Ctx): HTMLElement {
+  return siteScreen(ctx, "Kontakt", "Das Titelbild der Seite. Das OK steht unter Team, die E-Mail-Adresse unter Allgemein.", (f) => [titleImageField(f, "kontakt")]);
 }

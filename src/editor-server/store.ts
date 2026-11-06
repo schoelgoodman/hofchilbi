@@ -22,7 +22,7 @@ import {
  */
 
 export const DOCS = {
-  site: { file: "site.yaml", schema: SiteSchema, label: "Event & Allgemein" },
+  site: { file: "site.yaml", schema: SiteSchema, label: "Allgemein, Start & Titelbilder" },
   sponsors: { file: "sponsors.yaml", schema: SponsorsSchema, label: "Sponsoren & Gönner" },
   anzapfer: { file: "anzapfer.yaml", schema: AnzapferSchema, label: "Anzapfer" },
   team: { file: "team.yaml", schema: TeamSchema, label: "Team" },
@@ -33,6 +33,36 @@ export type DocName = keyof typeof DOCS;
 
 export const PAGES = ["geschichte", "impressum"] as const;
 export type PageName = (typeof PAGES)[number];
+
+const PAGE_LABELS: Record<PageName, string> = { geschichte: "Geschichte", impressum: "Impressum" };
+
+export function pageLabel(name: PageName): string {
+  return PAGE_LABELS[name];
+}
+
+/** What a content file is called in the editor. Null: not something that can be restored on its own. */
+export function areaLabel(file: string): string | null {
+  for (const doc of Object.values(DOCS)) if (doc.file === file) return doc.label;
+  const page = /^pages\/([a-z]+)\.md$/.exec(file)?.[1];
+  if (page && (PAGES as readonly string[]).includes(page)) return PAGE_LABELS[page as PageName];
+  if (/^news\/[a-z0-9][a-z0-9-]{0,80}\.md$/.test(file)) return "diese News";
+  return null;
+}
+
+/** Which areas of the editor a change of site.yaml belongs to (it feeds several screens). */
+export function siteChange(before: unknown, after: unknown): string {
+  const a = (before ?? {}) as Record<string, unknown>;
+  const b = (after ?? {}) as Record<string, unknown>;
+  const changed = (k: string) => JSON.stringify(a[k]) !== JSON.stringify(b[k]);
+  const parts = new Set<string>();
+  if (["event", "contact", "social", "seo", "editor"].some(changed)) parts.add("Allgemein");
+  if (["hero", "links", "helperCta"].some(changed)) parts.add("Start");
+  const imgA = (a.pageImages ?? {}) as Record<string, unknown>;
+  const imgB = (b.pageImages ?? {}) as Record<string, unknown>;
+  const names: Record<string, string> = { geschichte: "Geschichte", impressionen: "Impressionen", kontakt: "Kontakt" };
+  for (const [k, name] of Object.entries(names)) if (imgA[k] !== imgB[k]) parts.add(`Titelbild ${name}`);
+  return parts.size ? `${[...parts].join(", ")} geändert` : "Allgemein gespeichert";
+}
 
 export class HttpError extends Error {
   status: number;
