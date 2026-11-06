@@ -5,7 +5,7 @@ import { writeAssets } from "../design/assets.ts";
 import { contentDir, siteDir } from "../paths.ts";
 import { Images } from "./images.ts";
 import { layout, type Ctx, type PageDef } from "./layout.ts";
-import { geschichtePage, impressionenPage, impressionenYearPages, impressumPage, kontaktPage, notFoundPage, startPage } from "./pages.ts";
+import { geschichtePage, impressionenPage, impressionenYearPages, kontaktPage, legalPage, notFoundPage, startPage } from "./pages.ts";
 import { publishBuild } from "./publish.ts";
 
 export function siteUrl(): string {
@@ -88,8 +88,10 @@ async function buildOnce(): Promise<void> {
       ["404.html", await notFoundPage(ctx)],
     ];
     for (const p of await impressionenYearPages(ctx)) pages.push([`${p.path.slice(1)}.html`, p]);
-    const impressum = await impressumPage(ctx);
-    if (impressum) pages.push(["impressum.html", impressum]);
+    for (const name of ["impressum", "datenschutz"] as const) {
+      const page = await legalPage(ctx, name);
+      if (page) pages.push([`${name}.html`, page]);
+    }
     // Pages that point elsewhere: the server answers them with a 301 (server/index.ts).
     const redirects = Object.fromEntries(
       Object.entries(content.pages).flatMap(([name, p]) => (p.redirect ? [[`/${name}`, p.redirect]] : [])),

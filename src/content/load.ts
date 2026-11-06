@@ -94,6 +94,15 @@ async function mdFiles(dir: string): Promise<string[]> {
   }
 }
 
+/**
+ * Datenschutz used to be a link in site.yaml. Until pages/datenschutz.md exists that link counts as
+ * its forwarding address, so existing content (and restoring an old state) needs no migration.
+ */
+export function oldDatenschutzLink(site: unknown): string | undefined {
+  const link = (site as { contact?: { datenschutz?: unknown } } | null)?.contact?.datenschutz;
+  return typeof link === "string" && /^https?:\/\//.test(link) ? link : undefined;
+}
+
 export async function loadContent(dir: string, opts: { drafts?: boolean } = {}): Promise<Content> {
   const [site, sponsors, anzapfer, team, galleries, timeline] = await Promise.all([
     yamlFile(dir, "site.yaml", SiteSchema),
@@ -118,6 +127,8 @@ export async function loadContent(dir: string, opts: { drafts?: boolean } = {}):
     const { data, body } = parseFrontmatter(await readFile(path.join(dir, "pages", f), "utf8"));
     pages[f.replace(/\.md$/, "")] = { ...check(PageFrontmatter, data, `pages/${f}`), body };
   }
+  const oldLink = oldDatenschutzLink(site);
+  if (!pages.datenschutz && oldLink) pages.datenschutz = { title: "Datenschutz", redirect: oldLink, body: "" };
 
   anzapfer.list.sort((a, b) => b.year - a.year);
   galleries.galleries.sort((a, b) => b.year - a.year);

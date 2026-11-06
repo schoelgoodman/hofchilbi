@@ -249,6 +249,23 @@ test("siteChange: names the screens a change of site.yaml belongs to", () => {
 
 const SITE = { event: { days: ["2027-07-23"] }, hero: { image: "media/bilder/a.jpg" }, links: { goenner: "media/dokumente/g.pdf", helfer: "https://example.ch" }, helperCta: { title: "T", image: "media/bilder/a.jpg" }, contact: { email: "a@b.ch", datenschutz: "https://example.ch", ktv: "https://example.ch" }, social: {}, pageImages: { geschichte: "media/bilder/b.jpg", impressionen: "media/bilder/a.jpg", kontakt: "media/bilder/a.jpg" }, seo: { description: "x" } };
 
+test("Datenschutz page: the old link forwards until the page is saved, then the page decides", async () => {
+  const { s } = await mediaStore();
+  const old = await s.getPage("datenschutz");
+  assert.deepEqual(old, { meta: { redirect: "https://example.ch" }, body: "", version: "" });
+
+  // Saving Allgemein must not lose the old link while it is still in use.
+  const site = await s.getDoc("site");
+  await s.putDoc("site", site.data, site.version);
+  assert.deepEqual((await s.getPage("datenschutz")).meta, { redirect: "https://example.ch" });
+
+  // Forwarding removed and own text saved: the old link no longer counts.
+  await s.putPage("datenschutz", { title: "Datenschutz" }, "Unser Text", old.version);
+  const own = await s.getPage("datenschutz");
+  assert.deepEqual(own.meta, { title: "Datenschutz" });
+  assert.equal(own.body, "Unser Text");
+});
+
 async function mediaStore(): Promise<{ dir: string; s: Store }> {
   const dir = await tmp();
   const s = new Store(dir);

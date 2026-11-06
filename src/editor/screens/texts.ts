@@ -332,21 +332,61 @@ const IMPRESSUM_TEMPLATE = [
   "Texte und Bilder auf dieser Website gehören dem KTV Wil Handball oder den genannten Urheberinnen und Urhebern. Eine Verwendung ist nur mit Erlaubnis gestattet.",
 ].join("\n");
 
+// Only what the site really does: no cookies, no analytics, nothing loaded from other providers
+// (see the CSP in modules/services/hofchilbi/swag.nix). Adapt it when that changes.
+const DATENSCHUTZ_TEMPLATE = [
+  "Diese Erklärung zeigt, welche Personendaten beim Besuch dieser Website bearbeitet werden. Sie richtet sich nach dem Schweizer Datenschutzgesetz (DSG).",
+  "",
+  "**Verantwortlich**\\",
+  "KTV Wil Handball\\",
+  "9500 Wil SG\\",
+  "hofchilbi@ktvwil-handball.ch",
+  "",
+  "**Besuch der Website**\\",
+  "Beim Aufruf einer Seite verarbeitet der Server technisch notwendige Angaben: IP-Adresse, Datum und Uhrzeit, aufgerufene Seite sowie Browser und Betriebssystem. Sie dienen nur dem Betrieb und der Sicherheit der Website.",
+  "",
+  "**Keine Cookies, keine Analyse**\\",
+  "Diese Website setzt keine Cookies und verwendet keine Analyse- oder Werbedienste. Schriften und Bilder liegen auf der Website selbst, Inhalte anderer Anbieter werden nicht eingebunden.",
+  "",
+  "**Kontakt per E-Mail**\\",
+  "Wenn Sie uns schreiben, verwenden wir Ihre Angaben nur, um Ihre Anfrage zu beantworten.",
+  "",
+  "**Helferformular und Links**\\",
+  "Das Formular für Helferinnen und Helfer läuft über Microsoft Forms. Ihre Angaben verwenden wir nur für die Organisation der Hofchilbi. Microsoft kann Daten auch im Ausland bearbeiten. Für Microsoft, Instagram, Facebook und andere verlinkte Websites gelten deren eigene Datenschutzbestimmungen.",
+  "",
+  "**Fotos**\\",
+  "Auf dieser Website zeigen wir Fotos der Hofchilbi und unseres Teams. Wenn Sie auf einem Foto erkennbar sind und es entfernen lassen möchten, genügt eine E-Mail an uns.",
+  "",
+  "**Ihre Rechte**\\",
+  "Sie können Auskunft über Ihre Daten verlangen und deren Berichtigung oder Löschung fordern oder einer Bearbeitung widersprechen; gesetzliche Ausnahmen bleiben vorbehalten. Schreiben Sie dazu an die oben genannte Adresse. Beschwerden können Sie beim Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB) einreichen.",
+  "",
+  "Stand: November 2026",
+].join("\n");
+
+const forwardField = (name: string) => (f: Form) => [
+  text(f, "meta.redirect", "Stattdessen weiterleiten zu (optional)", {
+    type: "url",
+    placeholder: "https://ktvwil-handball.ch/…",
+    hint: `Ist hier eine Adresse eingetragen, zeigt die Website keine eigene Seite: Der Link im Fuss und /${name} führen direkt dorthin. Leer lassen für die eigene Seite.`,
+  }),
+];
+
 export function impressumScreen(ctx: Ctx): HTMLElement {
   return pageScreen(
     ctx,
     "impressum",
     "Impressum",
     "Wer hinter der Website steht. Solange der Text leer ist, gibt es keine Impressum-Seite. Die Vorlage unten bitte vervollständigen ([…] ersetzen) und speichern.",
-    {
-      template: IMPRESSUM_TEMPLATE,
-      extraFields: (f) => [
-        text(f, "meta.redirect", "Stattdessen weiterleiten zu (optional)", {
-          type: "url",
-          placeholder: "https://ktvwil-handball.ch/…",
-          hint: "Ist hier eine Adresse eingetragen, zeigt die Website keine eigene Seite: Der Link im Fuss und /impressum führen direkt dorthin. Leer lassen für die eigene Seite.",
-        }),
-      ],
-    },
+    { template: IMPRESSUM_TEMPLATE, extraFields: forwardField("impressum") },
+  );
+}
+
+export function datenschutzScreen(ctx: Ctx): HTMLElement {
+  return pageScreen(
+    ctx,
+    "datenschutz",
+    "Datenschutz",
+    "Welche Daten die Website bearbeitet. Ist eine Weiterleitung eingetragen, erscheint der Text unten nicht auf der Website. Für die eigene Seite die Weiterleitung löschen und speichern.",
+    { template: DATENSCHUTZ_TEMPLATE, extraFields: forwardField("datenschutz") },
   );
 }

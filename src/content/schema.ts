@@ -69,7 +69,8 @@ export const SiteSchema = z.object({
   }),
   contact: z.object({
     email: z.email(),
-    datenschutz: Link,
+    /** Old place of the link: only used while pages/datenschutz.md does not exist (see oldDatenschutzLink). */
+    datenschutz: Link.optional(),
     ktv: Link,
   }),
   social: z.object({

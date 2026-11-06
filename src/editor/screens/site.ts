@@ -75,7 +75,6 @@ export function allgemeinScreen(ctx: Ctx): HTMLElement {
     group(
       "Kontakt & Links",
       text(f, "contact.email", "E-Mail-Adresse", { type: "email" }),
-      text(f, "contact.datenschutz", "Link zur Datenschutzerklärung", { type: "url" }),
       text(f, "contact.ktv", "Link zum KTV Wil", { type: "url" }),
       text(f, "social.instagram", "Instagram", { type: "url" }),
       text(f, "social.facebook", "Facebook", { type: "url" }),

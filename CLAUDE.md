@@ -43,6 +43,9 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
 - Website-Check (`src/editor-server/check.ts`, sent with `/api/state`): only what a save cannot catch, mostly seasonal (date over,
   Anzapfer of the year, Impressum, news image without description, Immich errors). No outside requests, no dismissing.
 - Redirects: bare domain → `SITE_URL` host and trailing slashes in `src/server/urls.ts`, single pages via `redirect` in the page's frontmatter.
+- Impressum and Datenschutz (`legalPage`, `legalLink`): own text or `redirect`, same screen and footer logic. While `pages/datenschutz.md` is missing, the old
+  `contact.datenschutz` in `site.yaml` counts as its redirect (`oldDatenschutzLink`), so no migration. The Datenschutz template in `src/editor/screens/texts.ts` states
+  no cookies, no analytics and no outside content: if the site changes, change it too.
 - Share images: the Start page uses `seo.image` (else the hero), other pages their title image (`shareImage` in `PageDef`).
 - Editor writes require header `X-Hofchilbi-Editor: 1` and a matching Origin (`src/server/access.ts`).
 

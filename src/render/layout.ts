@@ -132,10 +132,10 @@ async function navOverlay(ctx: Ctx, current: string): Promise<Raw> {
 }
 
 /** Footer link: own page, external page (redirect), or nothing while the page is empty. */
-function impressumLink(ctx: Ctx): Raw | "" {
-  const p = ctx.content.pages.impressum;
-  if (p?.redirect) return html`<li><a href="${p.redirect}" rel="noopener" target="_blank">${p.title || "Impressum"}</a></li>`;
-  if (p?.body.trim()) return html`<li><a href="/impressum">${p.title || "Impressum"}</a></li>`;
+function legalLink(ctx: Ctx, name: "impressum" | "datenschutz"): Raw | "" {
+  const p = ctx.content.pages[name];
+  if (p?.redirect) return html`<li><a href="${p.redirect}" rel="noopener" target="_blank">${p.title}</a></li>`;
+  if (p?.body.trim()) return html`<li><a href="/${name}">${p.title}</a></li>`;
   return "";
 }
 
@@ -179,8 +179,8 @@ async function footer(ctx: Ctx, current: string): Promise<Raw> {
     <div class="footer__bottom">
       <span>© ${year} Hofchilbi Wil · KTV Wil Handball</span>
       <ul class="footer__legal">
-        ${impressumLink(ctx)}
-        <li><a href="${site.contact.datenschutz}" rel="noopener" target="_blank">Datenschutz</a></li>
+        ${legalLink(ctx, "impressum")}
+        ${legalLink(ctx, "datenschutz")}
       </ul>
     </div>
   </div>

@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import path from "node:path";
 import YAML from "yaml";
 import type { z } from "zod";
-import { parseFrontmatter, stringifyFrontmatter } from "../content/load.ts";
+import { oldDatenschutzLink, parseFrontmatter, stringifyFrontmatter } from "../content/load.ts";
 import {
   AnzapferSchema,
   GalleriesSchema,
@@ -31,10 +31,10 @@ export const DOCS = {
 } as const;
 export type DocName = keyof typeof DOCS;
 
-export const PAGES = ["geschichte", "impressum"] as const;
+export const PAGES = ["geschichte", "impressum", "datenschutz"] as const;
 export type PageName = (typeof PAGES)[number];
 
-const PAGE_LABELS: Record<PageName, string> = { geschichte: "Geschichte", impressum: "Impressum" };
+const PAGE_LABELS: Record<PageName, string> = { geschichte: "Geschichte", impressum: "Impressum", datenschutz: "Datenschutz" };
 
 export function pageLabel(name: PageName): string {
   return PAGE_LABELS[name];
@@ -240,6 +240,10 @@ export class Store {
   async getPage(name: string): Promise<{ meta: unknown; body: string; version: string }> {
     const text = await this.read(this.pageRel(name));
     const { data, body } = parseFrontmatter(text ?? "");
+    if (name === "datenschutz" && text === null) {
+      const redirect = oldDatenschutzLink((await this.getDoc("site")).data);
+      if (redirect) return { meta: { redirect }, body: "", version: "" };
+    }
     return { meta: data, body: body.trim(), version: version(text) };
   }
 

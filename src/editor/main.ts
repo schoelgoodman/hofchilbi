@@ -11,7 +11,7 @@ import { mediaScreen } from "./screens/media.ts";
 import { anzapferScreen, teamScreen, timelineScreen } from "./screens/people.ts";
 import { allgemeinScreen, impressionenScreen, kontaktScreen, startScreen } from "./screens/site.ts";
 import { sponsorsScreen } from "./screens/sponsors.ts";
-import { disposeEditor, impressumScreen, newsScreen, pageScreen } from "./screens/texts.ts";
+import { datenschutzScreen, disposeEditor, impressumScreen, newsScreen, pageScreen } from "./screens/texts.ts";
 
 interface Route {
   hash: string;
@@ -24,6 +24,12 @@ interface Route {
 }
 
 const at = (path: string) => () => path;
+
+/** Own text or forwarding: the address exists. Otherwise there is nothing to look at. */
+const legal = (name: string) => (s: State) => {
+  const p = s.pages[name];
+  return p?.body.trim() || (p?.meta as { redirect?: string } | undefined)?.redirect ? `/${name}` : null;
+};
 
 /** Mirrors the website: every page is a main entry, what appears on it sits underneath. */
 const GENERAL: Route = { hash: "allgemein", label: "Allgemein", render: allgemeinScreen };
@@ -43,15 +49,8 @@ const PAGES: Route[] = [
   { hash: "galerien", label: "Galerien", parent: "impressionen", site: at("/impressionen"), render: galleriesScreen },
   { hash: "kontakt", label: "Kontakt", site: at("/kontakt"), render: kontaktScreen },
   { hash: "team", label: "Team", parent: "kontakt", site: at("/kontakt"), render: teamScreen },
-  {
-    hash: "impressum",
-    label: "Impressum",
-    site: (s) => {
-      const p = s.pages.impressum;
-      return p?.body.trim() || (p?.meta as { redirect?: string } | undefined)?.redirect ? "/impressum" : null;
-    },
-    render: impressumScreen,
-  },
+  { hash: "impressum", label: "Impressum", site: legal("impressum"), render: impressumScreen },
+  { hash: "datenschutz", label: "Datenschutz", site: legal("datenschutz"), render: datenschutzScreen },
 ];
 const TOOLS: Route[] = [
   { hash: "medien", label: "Medien", render: mediaScreen },

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { eventLabel, parseFrontmatter, stringifyFrontmatter } from "./load.ts";
+import { eventLabel, oldDatenschutzLink, parseFrontmatter, stringifyFrontmatter } from "./load.ts";
 import { MediaPath } from "./schema.ts";
 
 test("eventLabel: two days in one month", () => {
@@ -17,6 +17,13 @@ test("frontmatter round trip", () => {
   const { data, body } = parseFrontmatter(text);
   assert.deepEqual(data, { title: "Wir sagen DANKE!", date: "2026-07-27", draft: false });
   assert.equal(body.trim(), "Hallo **Wil**");
+});
+
+test("oldDatenschutzLink: only a web address counts", () => {
+  assert.equal(oldDatenschutzLink({ contact: { datenschutz: "https://ktv.ch/datenschutz" } }), "https://ktv.ch/datenschutz");
+  assert.equal(oldDatenschutzLink({ contact: { datenschutz: "media/dokumente/d.pdf" } }), undefined);
+  assert.equal(oldDatenschutzLink({ contact: {} }), undefined);
+  assert.equal(oldDatenschutzLink(null), undefined);
 });
 
 test("MediaPath rejects traversal and non-media paths", () => {

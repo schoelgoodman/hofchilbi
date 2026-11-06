@@ -426,16 +426,16 @@ export async function kontaktPage(ctx: Ctx): Promise<PageDef> {
   };
 }
 
-// ---------------------------------------------------------------- Impressum
-/** Rendered only if the page has text and no redirect (see impressumLink). */
-export async function impressumPage(ctx: Ctx): Promise<PageDef | null> {
-  const page = ctx.content.pages.impressum;
+// ---------------------------------------------------------------- Impressum, Datenschutz
+/** Rendered only if the page has text and no redirect (see legalLink). */
+export async function legalPage(ctx: Ctx, name: "impressum" | "datenschutz"): Promise<PageDef | null> {
+  const page = ctx.content.pages[name];
   if (!page || page.redirect || !page.body.trim()) return null;
   const image = ctx.content.site.pageImages.kontakt;
   return {
-    path: "/impressum",
+    path: `/${name}`,
     title: page.title,
-    description: page.description ?? `Impressum der Website ${ctx.content.site.title}.`,
+    description: page.description ?? `${name === "impressum" ? "Impressum" : "Datenschutzerklärung"} der Website ${ctx.content.site.title}.`,
     preload: await heroPreload(ctx, image),
     hero: await hero(ctx, { image, inner: html`<h1>${page.title}</h1>` }),
     main: html`<section class="section" aria-labelledby="i-title">

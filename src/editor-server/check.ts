@@ -20,6 +20,7 @@ export interface CheckInput {
   anzapfer: unknown;
   news: { slug: string; meta: unknown }[];
   impressum: { meta: unknown; body: string } | undefined;
+  datenschutz: { meta: unknown; body: string } | undefined;
   immichError: string | undefined;
   /** YYYY-MM-DD */
   today: string;
@@ -64,14 +65,23 @@ export function siteChecks(input: CheckInput): Finding[] {
     });
   }
 
-  const impressum = input.impressum;
-  if (!impressum?.body.trim() && !(impressum?.meta as { redirect?: string } | undefined)?.redirect) {
+  const isEmpty = (page: CheckInput["impressum"]) => !page?.body.trim() && !(page?.meta as { redirect?: string } | undefined)?.redirect;
+  if (isEmpty(input.impressum)) {
     out.push({
       id: "impressum-missing",
       title: "Das Impressum fehlt",
       detail: "Solange es leer ist, gibt es auf der Website weder die Seite noch den Link dazu in der Fusszeile.",
       route: "impressum",
       action: "Zum Impressum",
+    });
+  }
+  if (isEmpty(input.datenschutz)) {
+    out.push({
+      id: "datenschutz-missing",
+      title: "Die Datenschutzerklärung fehlt",
+      detail: "Solange weder ein Text noch eine Weiterleitung eingetragen ist, gibt es auf der Website weder die Seite noch den Link dazu in der Fusszeile.",
+      route: "datenschutz",
+      action: "Zum Datenschutz",
     });
   }
 

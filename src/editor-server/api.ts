@@ -338,12 +338,12 @@ export class EditorApi {
     const pages: Record<string, unknown> = {};
     for (const name of PAGES) pages[name] = await this.store.getPage(name);
     const news = await this.store.listNews();
-    const impressum = await this.store.getPage("impressum");
     const checks = siteChecks({
       site: (docs.site as { data: unknown }).data,
       anzapfer: (docs.anzapfer as { data: unknown }).data,
       news,
-      impressum,
+      impressum: await this.store.getPage("impressum"),
+      datenschutz: await this.store.getPage("datenschutz"),
       immichError: this.immich.status.enabled ? this.immich.status.lastError : undefined,
       today: swissToday(),
     });

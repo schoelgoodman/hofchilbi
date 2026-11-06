@@ -7,6 +7,7 @@ const OK: CheckInput = {
   anzapfer: { list: [{ year: 2026, name: "Maurice" }] },
   news: [{ slug: "danke", meta: { title: "Danke", image: "media/a.jpg", imageAlt: "Die Bar" } }],
   impressum: { meta: {}, body: "KTV Wil" },
+  datenschutz: { meta: { redirect: "https://ktv.ch" }, body: "" },
   immichError: undefined,
   today: "2026-11-06",
 };
@@ -17,7 +18,7 @@ test("nothing to do", () => {
 });
 
 test("no content yet: no findings", () => {
-  assert.deepEqual(ids({ site: null, anzapfer: null, impressum: undefined }), []);
+  assert.deepEqual(ids({ site: null, anzapfer: null, impressum: undefined, datenschutz: undefined }), []);
 });
 
 test("festival date: on the last day it still counts, the day after it is over", () => {
@@ -38,6 +39,12 @@ test("Impressum: text or a redirect are both fine", () => {
   assert.deepEqual(ids({ impressum: undefined }), ["impressum-missing"]);
   assert.deepEqual(ids({ impressum: { meta: {}, body: "  " } }), ["impressum-missing"]);
   assert.deepEqual(ids({ impressum: { meta: { redirect: "https://ktv.ch" }, body: "" } }), []);
+});
+
+test("Datenschutz: text or a redirect are both fine", () => {
+  assert.deepEqual(ids({ datenschutz: undefined }), ["datenschutz-missing"]);
+  assert.deepEqual(ids({ datenschutz: { meta: {}, body: "  " } }), ["datenschutz-missing"]);
+  assert.deepEqual(ids({ datenschutz: { meta: {}, body: "KTV Wil" } }), []);
 });
 
 test("news image without description: published only, leads to that news", () => {
