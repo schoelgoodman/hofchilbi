@@ -41,6 +41,16 @@ export function splitGoenner(entry: string): { name: string; detail?: string; pl
   return { name: parts[0]!, ...(detail ? { detail } : {}), place: parts.at(-1)! };
 }
 
+/**
+ * Two news are equals. Otherwise the newest is big and the others follow as cards; `list` selects
+ * how those fill their rows (.news__list--* in site.css).
+ */
+export function newsLayout<N>(news: N[]): { big: N | undefined; cards: N[]; list: string } {
+  if (news.length === 2) return { big: undefined, cards: news, list: "pair" };
+  const [big, ...cards] = news;
+  return { big, cards, list: String(cards.length) };
+}
+
 // ---------------------------------------------------------------- Start
 export async function startPage(ctx: Ctx): Promise<PageDef> {
   const { site, news, anzapfer, sponsors } = ctx.content;
@@ -54,24 +64,34 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
       <a class="button button--lg" href="${await ctx.images.href(site.links.helfer)}"${linkAttrs(site.links.helfer)}>Helfer werden</a>
     </div>`;
 
-  // Newest item large, the next ones as cards (on phones a row to swipe through).
-  const shown = news.slice(0, 7);
-  const newsCard = async (n: (typeof news)[number], featured: boolean) => {
-    const img = n.image
-      ? await ctx.images.img(n.image, {
-          alt: n.imageAlt ?? "",
-          sizes: featured ? "(min-width: 992px) 600px, 92vw" : "(min-width: 992px) 380px, 80vw",
-          widths: featured ? [400, 600, 800, 1200] : [400, 600, 800],
-          aspect: featured ? undefined : 4 / 3,
-        })
-      : "";
+  const { big, cards, list } = newsLayout(news.slice(0, 7));
+  const wideCards = list === "pair" || list === "2";
+  const newsImage = async (n: (typeof news)[number], portrait: boolean) => {
+    if (!n.image) return "";
+    const graphic = await ctx.images.isGraphic(n.image);
+    let sizes = "(min-width: 992px) 380px, 80vw";
+    if (n === big) sizes = portrait ? "(min-width: 768px) 40vw, 92vw" : "(min-width: 768px) 54vw, 92vw";
+    else if (wideCards) sizes = `(min-width: 768px) 46vw, ${list === "pair" ? 92 : 80}vw`;
+    return ctx.images.img(n.image, {
+      alt: n.imageAlt ?? "",
+      sizes,
+      widths: n === big || wideCards ? [400, 600, 800, 1200] : [400, 600, 800],
+      // Fixed frames: an image can never make its news tall, whatever gets uploaded.
+      aspect: graphic ? undefined : portrait ? 4 / 5 : 4 / 3,
+      cls: graphic ? "news__whole" : undefined,
+    });
+  };
+  const newsCard = async (n: (typeof news)[number]) => {
+    // Cards in a row need the same shape, or their texts would start at different heights.
+    const portrait = n === big && Boolean(n.image) && (await ctx.images.isPortrait(n.image!));
+    const img = await newsImage(n, portrait);
     // The shared buttons always follow the links set on Start.
     const cta = n.ctaTarget
       ? { label: n.ctaTarget === "helfer" ? "Helfer werden" : "Gönner werden", url: site.links[n.ctaTarget] }
       : n.ctaLabel && n.ctaUrl
         ? { label: n.ctaLabel, url: n.ctaUrl }
         : null;
-    return html`<article class="${featured ? "news__featured" : "news__card"}">
+    return html`<article class="${n === big ? `news__featured${portrait ? " news__featured--portrait" : ""}` : "news__card"}">
         ${img ? html`<div class="news__media">${img}</div>` : ""}
         <div class="news__body">
           <p class="news__date"><time datetime="${n.date}">${LONG_DATE.format(new Date(n.date))}</time></p>
@@ -83,13 +103,12 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
         </div>
       </article>`;
   };
-  const [newest, ...older] = shown;
-  const newsSection = newest
+  const newsSection = big || cards.length
     ? html`<section class="news section--paper" aria-labelledby="news-title">
     <div class="news__inner">
       <h2 id="news-title">Hofchilbi-News</h2>
-      ${await newsCard(newest, true)}
-      ${older.length ? html`<div class="news__list">${await Promise.all(older.map((n) => newsCard(n, false)))}</div>` : ""}
+      ${big ? await newsCard(big) : ""}
+      ${cards.length ? html`<div class="news__list news__list--${list}">${await Promise.all(cards.map((n) => newsCard(n)))}</div>` : ""}
     </div>
   </section>`
     : "";

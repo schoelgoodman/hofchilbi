@@ -242,7 +242,7 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
       (f) => [
         text(f, "meta.date", "Datum", { type: "date" }),
         checkbox(f, "meta.draft", "Entwurf (auf der Website noch nicht sichtbar)"),
-        image(f, "meta.image", "Bild (optional)", { dir: "news", optional: true }),
+        image(f, "meta.image", "Bild (optional)", { dir: "news", optional: true, hint: "Wird automatisch zugeschnitten: Querformat 4:3. Hochformat 4:5, wenn die News gross erscheint." }),
         f.get("meta.image") ? text(f, "meta.imageAlt", "Bildbeschreibung", { hint: "Kurz beschreiben, was zu sehen ist (für Google und blinde Menschen)." }) : null,
         ...newsButtonFields(f, () => customButton, (v) => (customButton = v)),
       ],

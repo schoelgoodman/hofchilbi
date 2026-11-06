@@ -656,7 +656,8 @@ h3 {
 }
 
 /* News: white cards on grey, like the sponsors. Newest item large, older ones smaller
-   (a swipeable row on phones). The photo fills the card edge to edge, the text gets the padding. */
+   (a swipeable row on phones), two news as equal cards (stacked on phones). The photo fills the
+   card edge to edge in a fixed frame, the text gets the padding. */
 .news {
   padding: clamp(50px, 8vw, 105px) var(--pad) clamp(50px, 7vw, 90px);
 }
@@ -713,8 +714,11 @@ h3 {
 .news__featured .news__media img {
   display: block;
   width: 100%;
-  height: 100%;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
+}
+.news__featured--portrait .news__media img {
+  aspect-ratio: 4 / 5;
 }
 @media (min-width: 768px) {
   .news__featured .news__body {
@@ -722,6 +726,13 @@ h3 {
   }
   .news__featured {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+  .news__featured--portrait {
+    grid-template-columns: 40% minmax(0, 1fr);
+  }
+  /* A long text runs on below the photo, which keeps its frame. */
+  .news__featured .news__media {
+    align-self: start;
   }
   .news__featured:not(:has(.news__media)) {
     grid-template-columns: minmax(0, 760px);
@@ -740,6 +751,15 @@ h3 {
   scroll-snap-type: x mandatory;
   scroll-padding: 0 var(--pad);
 }
+.news__list--pair {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+/* Cards fill their rows: 2, 3, 4 in a row, 3 + 2 centred, 3 + 3. */
 @media (min-width: 768px) {
   .news__list {
     grid-auto-flow: row;
@@ -748,6 +768,28 @@ h3 {
     margin: clamp(48px, 6vw, 80px) 0 0;
     padding: 0;
     overflow: visible;
+  }
+  .news__list--pair {
+    margin-top: 0;
+  }
+  .news__list--pair,
+  .news__list--2,
+  .news__list--4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .news__list--5 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .news__list--5 > * {
+    grid-column: span 2;
+  }
+  .news__list--5 > :nth-child(4) {
+    grid-column: 2 / span 2;
+  }
+}
+@media (min-width: 992px) {
+  .news__list--4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 .news__card {
@@ -764,6 +806,12 @@ h3 {
 }
 .news__card h3 {
   font-size: clamp(1.3rem, 0.8vw + 1rem, 1.6rem);
+}
+/* Logos: whole, in the same frame. */
+.news__media img.news__whole {
+  box-sizing: border-box;
+  padding: 8%;
+  object-fit: contain;
 }
 
 /* Banner with photo (helper call) */

@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { anzapferRows, initials, logoSize, splitGoenner } from "./pages.ts";
+import { anzapferRows, initials, logoSize, newsLayout, splitGoenner } from "./pages.ts";
+
+test("newsLayout: two news are equals, otherwise the newest is big", () => {
+  assert.deepEqual(newsLayout([]), { big: undefined, cards: [], list: "0" });
+  assert.deepEqual(newsLayout(["a"]), { big: "a", cards: [], list: "0" });
+  assert.deepEqual(newsLayout(["a", "b"]), { big: undefined, cards: ["a", "b"], list: "pair" });
+  assert.deepEqual(newsLayout(["a", "b", "c"]), { big: "a", cards: ["b", "c"], list: "2" });
+  assert.deepEqual(newsLayout(["a", "b", "c", "d", "e", "f"]), { big: "a", cards: ["b", "c", "d", "e", "f"], list: "5" });
+});
 
 test("logoSize: steps of √2 in aspect ratio, clamped", () => {
   assert.equal(logoSize(1), 0);

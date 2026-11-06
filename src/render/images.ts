@@ -261,6 +261,17 @@ export class Images {
     return this.variant(rel, aspect ? width : Math.min(width, w), aspect, format);
   }
 
+  /** Taller than wide, as it is shown (camera rotation counted). */
+  async isPortrait(rel: string): Promise<boolean> {
+    const size = RASTER.test(rel) ? await this.dimensions(rel) : await this.svgSize(rel);
+    return size ? size.height > size.width : false;
+  }
+
+  /** SVG or with transparency: most likely a logo, cropping would cut it off. */
+  async isGraphic(rel: string): Promise<boolean> {
+    return !RASTER.test(rel) || Boolean((await this.dimensions(rel)).hasAlpha);
+  }
+
   /** <img> with srcset, intrinsic size (no layout shift) and lazy loading. */
   async img(rel: string, o: ImageOpts): Promise<Raw> {
     const loading = o.eager ? "eager" : "lazy";
