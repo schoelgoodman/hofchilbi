@@ -106,8 +106,9 @@
       e.preventDefault();
       clearTimeout(timer);
       if (++taps >= 5) location.href = "/redaktion";
-      // A normal single tap still leads to the start page, a moment later.
-      else timer = setTimeout(() => (location.href = footerLogo.href), 400);
+      // A normal single tap still leads to the start page, a moment later. Long enough that
+      // unhurried tapping doesn't get interrupted by the page change.
+      else timer = setTimeout(() => (location.href = footerLogo.href), 700);
     });
   }
 
