@@ -175,6 +175,26 @@ export class History {
     return this.git(["show", `${rev}:${file}`]).catch(() => null);
   }
 
+  /** The commit before `hash`, or null if it is the oldest. Rejects if there is no such commit. */
+  parentOf(hash: string): Promise<string | null> {
+    if (!/^[0-9a-f]{7,40}$/.test(hash)) return Promise.reject(new Error("bad hash"));
+    return this.serial(async () => {
+      await this.git(["cat-file", "-e", `${hash}^{commit}`]);
+      return (await this.git(["rev-parse", "--verify", "-q", `${hash}^`]).catch(() => "")).trim() || null;
+    });
+  }
+
+  /** Files that differ between two states, optionally only this one. */
+  changedFiles(from: string, to: string, file?: string): Promise<{ status: string; file: string }[]> {
+    return this.serial(async () => {
+      const out = await this.git(["diff", "--no-renames", "--name-status", from, to, ...(file ? ["--", file] : [])]);
+      return out.split("\n").filter(Boolean).map((l) => {
+        const [status, name] = l.split("\t");
+        return { status: status!, file: name! };
+      });
+    });
+  }
+
   /** Brings the whole content back to the state of `hash`, as a new commit (nothing is lost). */
   restore(hash: string): Promise<string> {
     if (!/^[0-9a-f]{7,40}$/.test(hash)) return Promise.reject(new Error("bad hash"));

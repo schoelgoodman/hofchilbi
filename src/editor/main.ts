@@ -3,6 +3,7 @@ import skylineUrl from "../design/assets/skyline-white.svg";
 import "./editor.css";
 import { api, type State } from "./api.ts";
 import { h, isPhone, toast } from "./dom.ts";
+import { checkScreen } from "./screens/check.ts";
 import type { Ctx } from "./screens/doc.ts";
 import { galleriesScreen } from "./screens/galleries.ts";
 import { historyScreen } from "./screens/history.ts";
@@ -55,6 +56,7 @@ const PAGES: Route[] = [
 const TOOLS: Route[] = [
   { hash: "medien", label: "Medien", render: mediaScreen },
   { hash: "verlauf", label: "Verlauf", render: historyScreen },
+  { hash: "check", label: "Website-Check", render: checkScreen },
 ];
 const ROUTES = [GENERAL, ...PAGES, ...TOOLS];
 
@@ -105,7 +107,14 @@ const ctx: Ctx = {
 };
 
 function renderNav(current: Route): void {
-  const link = (r: Route) => h("a", { href: `#/${r.hash}`, "aria-current": r === current ? "page" : null }, r.label);
+  const open = state.checks.length;
+  const link = (r: Route) =>
+    h(
+      "a",
+      { href: `#/${r.hash}`, "aria-current": r === current ? "page" : null },
+      r.label,
+      r.hash === "check" && open ? h("span", { class: "nav__count", "aria-label": `${open} offen` }, open) : null,
+    );
   nav.replaceChildren(
     h("ul", {}, h("li", {}, link(GENERAL))),
     h("p", { class: "nav__label" }, "Seiten"),
@@ -239,6 +248,11 @@ async function watchBuild(): Promise<void> {
 window.addEventListener("hofchilbi:saved", () => {
   renderFeedback();
   void watchBuild();
+  // Some screens keep their own copy after saving: the number next to Website-Check must follow.
+  api.state().then((fresh) => {
+    state.checks = fresh.checks;
+    renderNav(currentRoute());
+  }, () => undefined);
 });
 
 window.addEventListener("hashchange", () => {

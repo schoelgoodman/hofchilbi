@@ -315,3 +315,19 @@ test("putNews: a news button may lead to an uploaded PDF", async () => {
   const [n] = await s.listNews();
   await s.putNews(slug, { title: "Fest", date: "2027-01-02", ctaLabel: "PDF", ctaUrl: "media/dokumente/g.pdf" }, "", n!.version);
 });
+
+test("History: parent and changed files between two states", async () => {
+  const dir = await tmp();
+  await writeFile(path.join(dir, "team.yaml"), "a: 1\n");
+  const h = new History(dir);
+  await h.init();
+  const first = await h.commit("eins");
+  await writeFile(path.join(dir, "team.yaml"), "a: 2\n");
+  await writeFile(path.join(dir, "neu.md"), "x\n");
+  const second = await h.commit("zwei");
+  assert.equal(await h.parentOf(first), null);
+  assert.equal(await h.parentOf(second), first);
+  await assert.rejects(h.parentOf("0000000"));
+  assert.deepEqual(await h.changedFiles(first, second), [{ status: "A", file: "neu.md" }, { status: "M", file: "team.yaml" }]);
+  assert.deepEqual(await h.changedFiles(first, second, "team.yaml"), [{ status: "M", file: "team.yaml" }]);
+});

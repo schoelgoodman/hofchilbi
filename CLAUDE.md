@@ -38,6 +38,12 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
 - Icon: the shield from the logo, in three identical copies (`src/design/assets/favicon.svg`, `src/editor/public/favicon.svg`,
   `modules/services/hofchilbi/icon.svg`, used by both Neo services). The site generates its `apple-touch-icon.png`, the editor has a
   checked-in one in `public/`: change them together.
+- Verlauf: «Änderungen ansehen» and the restore dialogs come from `src/editor-server/diff.ts`, which turns two states of a
+  file into changes in the editor's words. New form fields need a label in its `SPECS`/`*_FIELDS` tables.
+- Website-Check (`src/editor-server/check.ts`, sent with `/api/state`): only what a save cannot catch, mostly seasonal (date over,
+  Anzapfer of the year, Impressum, news image without description, Immich errors). No outside requests, no dismissing.
+- Redirects: bare domain → `SITE_URL` host and trailing slashes in `src/server/urls.ts`, single pages via `redirect` in the page's frontmatter.
+- Share images: the Start page uses `seo.image` (else the hero), other pages their title image (`shareImage` in `PageDef`).
 - Editor writes require header `X-Hofchilbi-Editor: 1` and a matching Origin (`src/server/access.ts`).
 
 ## Security model (Phase 4)

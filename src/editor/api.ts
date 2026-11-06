@@ -62,6 +62,7 @@ export interface State {
   publicUrl: string;
   build: { ok: boolean; at?: string; error?: string } | null;
   immich: ImmichStatus;
+  checks: { id: string; title: string; detail: string; route: string; action: string }[];
 }
 export interface ImmichStatus {
   enabled: boolean;
@@ -77,6 +78,22 @@ export interface HistoryPage {
   more: boolean;
   deleted: { hash: string; date: string; file: string; title: string }[];
   deletedFiles: { hash: string; date: string; file: string; title: string }[];
+}
+
+export interface WordPart {
+  t: "same" | "add" | "del" | "gap";
+  text: string;
+}
+export interface Change {
+  label: string;
+  kind: "added" | "removed" | "changed";
+  before?: string;
+  after?: string;
+  words?: WordPart[];
+}
+export interface Changes {
+  first: boolean;
+  files: { area: string; changes: Change[] }[];
 }
 
 export interface MediaFile {
@@ -99,6 +116,9 @@ export const api = {
   upload: (dir: string, file: File) =>
     call<{ path: string }>("POST", `/api/upload?dir=${encodeURIComponent(dir)}`, file, { "X-Filename": encodeURIComponent(file.name) }),
   history: (skip = 0) => call<HistoryPage>("GET", `/api/history?skip=${skip}`),
+  changes: (hash: string) => call<Changes>("GET", `/api/history/changes?hash=${hash}`),
+  /** What bringing back this state would change today. */
+  changesToNow: (hash: string, file?: string) => call<Changes>("GET", `/api/history/changes?hash=${hash}&compare=now${file ? `&file=${encodeURIComponent(file)}` : ""}`),
   media: () => call<MediaFile[]>("GET", "/api/media"),
   deleteMedia: (path: string) => call<{ hash: string; file: string }>("DELETE", `/api/media?path=${encodeURIComponent(path)}`),
   restoreFile: (hash: string, file: string) => call<object>("POST", "/api/restore-file", { hash, file }),

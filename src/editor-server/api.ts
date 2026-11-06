@@ -7,6 +7,8 @@ import sharp from "sharp";
 import { MediaPath } from "../content/schema.ts";
 import { readStatus } from "../render/build.ts";
 import { serveStatic } from "../server/static.ts";
+import { siteChecks, swissToday } from "./check.ts";
+import { fileChanges, type FileChanges } from "./diff.ts";
 import { History } from "./git.ts";
 import { immichConfigFromEnv, ImmichSync } from "./immich.ts";
 import { assertDeletable, isManagedMedia, listMedia } from "./media.ts";
@@ -57,6 +59,8 @@ function json(res: http.ServerResponse, status: number, data: unknown): true {
 }
 
 const FILE_DELETED = "Datei gelöscht: ";
+/** Whole-website comparisons can touch many uploads: the first few by name, then a count. */
+const MEDIA_LISTED = 5;
 
 /** Entries written before the wording changed. */
 function friendly(message: string): string {
@@ -202,6 +206,7 @@ export class EditorApi {
       }
 
       if (p === "/api/history" && m === "GET") return json(res, 200, await this.historyPage(Number(url.searchParams.get("skip")) || 0));
+      if (p === "/api/history/changes" && m === "GET") return json(res, 200, await this.changes(url));
       if (p === "/api/restore-file" && m === "POST") {
         const body = await readJson(req);
         const file = String(body.file ?? "");
@@ -233,6 +238,39 @@ export class EditorApi {
       }
       throw err;
     }
+  }
+
+  /**
+   * What one save changed, or with compare=now what bringing back that state would change today
+   * (optionally only for one file). `first`: the oldest state, there is nothing before it.
+   */
+  private async changes(url: URL): Promise<{ first: boolean; files: FileChanges[] }> {
+    const hash = url.searchParams.get("hash") ?? "";
+    const only = url.searchParams.get("file") ?? undefined;
+    if (only !== undefined && !this.restorable(only)) throw new HttpError(400, "Dieser Bereich lässt sich nicht einzeln anzeigen.");
+    const parent = await this.history.parentOf(hash).catch(() => {
+      throw new HttpError(400, "Diesen Stand gibt es nicht.");
+    });
+    const now = url.searchParams.get("compare") === "now";
+    if (!now && !parent) return { first: true, files: [] };
+    const [from, to] = now ? ["HEAD", hash] : [parent!, hash];
+    const changed = await this.history.changedFiles(from, to, only);
+    const files: FileChanges[] = [];
+    for (const { file } of changed) {
+      if (file.startsWith("media/")) continue;
+      const entry = fileChanges(file, await this.history.fileAt(from, file), await this.history.fileAt(to, file));
+      if (entry) files.push(entry);
+    }
+    const media = changed.filter((c) => isManagedMedia(c.file));
+    if (media.length) {
+      const named = media.slice(0, MEDIA_LISTED).map((c) => ({
+        label: path.basename(c.file),
+        kind: c.status === "A" ? ("added" as const) : c.status === "D" ? ("removed" as const) : ("changed" as const),
+      }));
+      const rest = media.length - named.length;
+      files.push({ area: "Dateien", changes: rest ? [...named, { label: `und ${rest} weitere`, kind: "changed" }] : named });
+    }
+    return { first: false, files };
   }
 
   /** Label of a file that can be restored on its own. Immich owns the galleries. */
@@ -299,7 +337,17 @@ export class EditorApi {
     for (const name of Object.keys(DOCS) as DocName[]) docs[name] = await this.store.getDoc(name);
     const pages: Record<string, unknown> = {};
     for (const name of PAGES) pages[name] = await this.store.getPage(name);
-    return { docs, news: await this.store.listNews(), pages, publicUrl: this.publicUrl, build: await readStatus(), immich: this.immich.status };
+    const news = await this.store.listNews();
+    const impressum = await this.store.getPage("impressum");
+    const checks = siteChecks({
+      site: (docs.site as { data: unknown }).data,
+      anzapfer: (docs.anzapfer as { data: unknown }).data,
+      news,
+      impressum,
+      immichError: this.immich.status.enabled ? this.immich.status.lastError : undefined,
+      today: swissToday(),
+    });
+    return { docs, news, pages, publicUrl: this.publicUrl, build: await readStatus(), immich: this.immich.status, checks };
   }
 
   /** Small WebP preview of an uploaded image (originals can be several MB). */

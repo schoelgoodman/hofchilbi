@@ -117,4 +117,5 @@ counts (editor → Galerien) to the operator.
 
 When the operator confirms DNS for `hofchilbi.ch` points to this server:
 `[services.hofchilbi] customDomains = ["www.hofchilbi.ch", "hofchilbi.ch"]`, Activate, then
-check that `https://www.hofchilbi.ch/` serves the site and `http://hofchilbi.ch` redirects to https.
+check that `https://www.hofchilbi.ch/` serves the site, `http://hofchilbi.ch` redirects to https and
+`curl -sI https://hofchilbi.ch/kontakt` answers `301` with `location: https://www.hofchilbi.ch/kontakt`.

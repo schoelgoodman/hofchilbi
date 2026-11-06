@@ -18,7 +18,7 @@
       "img-src 'self' data:"
       "font-src 'self'"
       "connect-src 'self'"
-      "frame-src https://www.google.com https://www.openstreetmap.org"
+      "frame-src 'none'"
       "object-src 'none'"
       "base-uri 'self'"
       "form-action 'self'"

@@ -83,7 +83,7 @@ export function allgemeinScreen(ctx: Ctx): HTMLElement {
     group(
       "Google & Teilen",
       text(f, "seo.description", "Kurzbeschreibung", { multiline: true, hint: "So erscheint die Seite bei Google. 120–160 Zeichen." }),
-      image(f, "seo.image", "Vorschaubild beim Teilen (optional)", { dir: "bilder", optional: true, hint: "Leer: das Startbild wird verwendet." }),
+      image(f, "seo.image", "Vorschaubild beim Teilen (optional)", { dir: "bilder", optional: true, hint: "Für die Startseite, leer: das Startbild. Die anderen Seiten zeigen ihr eigenes Titelbild." }),
     ),
     group(
       "Redaktion",

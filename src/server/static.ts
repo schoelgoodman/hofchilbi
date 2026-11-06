@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import type http from "node:http";
 import path from "node:path";
+import { pipeline } from "node:stream";
 import { brotliCompressSync, constants as zlibConstants, gzipSync } from "node:zlib";
 
 const TYPES: Record<string, string> = {
@@ -137,6 +138,9 @@ export async function serveStatic(req: http.IncomingMessage, res: http.ServerRes
     res.end();
     return true;
   }
-  createReadStream(found.file).pipe(res);
+  // A read error must end this response, not the process. Also closes the file if the visitor leaves.
+  pipeline(createReadStream(found.file), res, (err) => {
+    if (err && err.code !== "ERR_STREAM_PREMATURE_CLOSE") console.error(`Static: ${found.file}:`, err.message);
+  });
   return true;
 }

@@ -33,6 +33,8 @@ export interface PageDef {
   main: Raw;
   jsonLd?: unknown;
   noindex?: boolean;
+  /** Picture when this page is shared (cropped to 1200×630). Default: the one set for the site. */
+  shareImage?: string;
   /** Hero image to preload with high priority (it is the LCP element). */
   preload?: { srcset: string; sizes: string };
 }
@@ -189,6 +191,7 @@ export async function layout(ctx: Ctx, page: PageDef): Promise<string> {
   const { site } = ctx.content;
   const url = ctx.siteUrl + page.path;
   const fullTitle = page.path === "/" ? page.title : `${page.title} | ${site.title}`;
+  const ogImage = page.shareImage ? ctx.siteUrl + (await ctx.images.single(page.shareImage, 1200, 1200 / 630, "jpeg")) : ctx.ogImage;
   return (
     "<!doctype html>\n" +
     html`<html lang="de-CH">
@@ -210,7 +213,7 @@ ${page.preload ? html`<link rel="preload" as="image" imagesrcset="${page.preload
 <meta property="og:title" content="${fullTitle}">
 <meta property="og:description" content="${page.description}">
 <meta property="og:url" content="${url}">
-<meta property="og:image" content="${ctx.ogImage}">
+<meta property="og:image" content="${ogImage}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">

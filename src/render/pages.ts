@@ -265,6 +265,7 @@ export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
     path: "/geschichte",
     title: page.title,
     description: page.description ?? markdownText(page.body).slice(0, 155).replace(/\s\S*$/, "") + " …",
+    shareImage: site.pageImages.geschichte,
     preload: await heroPreload(ctx, site.pageImages.geschichte),
     hero: await hero(ctx, { image: site.pageImages.geschichte, inner: html`<h1>${page.title}</h1>` }),
     main: html`<section class="section history" aria-labelledby="g-title">
@@ -309,6 +310,7 @@ export async function impressionenPage(ctx: Ctx): Promise<PageDef> {
     path: "/impressionen",
     title: "Impressionen",
     description: `Fotos der Hofchilbi Wil${years ? ` ${years}` : ""}: Stimmung, Bars und Festbetrieb im Hof zu Wil.`,
+    shareImage: site.pageImages.impressionen,
     preload: await heroPreload(ctx, site.pageImages.impressionen),
     hero: await hero(ctx, { image: site.pageImages.impressionen, inner: html`<h1>Impressionen</h1>` }),
     main: list.length
@@ -340,6 +342,7 @@ export async function impressionenYearPages(ctx: Ctx): Promise<PageDef[]> {
       path: `/impressionen/${g.year}`,
       title,
       description: `${g.images.length} Fotos der Hofchilbi Wil ${g.year}: Stimmung, Bars und Festbetrieb im Hof zu Wil.`,
+      shareImage: site.pageImages.impressionen,
       preload: await heroPreload(ctx, site.pageImages.impressionen),
       hero: await hero(ctx, { image: site.pageImages.impressionen, inner: html`<h1>${title}</h1>` }),
       main: html`<section class="section gallery-section" aria-labelledby="g-title">
@@ -399,6 +402,7 @@ export async function kontaktPage(ctx: Ctx): Promise<PageDef> {
     path: "/kontakt",
     title: "Kontakt",
     description: `Kontakt zur Hofchilbi Wil: E-Mail ${mail} und das Organisationskomitee des KTV Wil Handball.`,
+    shareImage: site.pageImages.kontakt,
     preload: await heroPreload(ctx, site.pageImages.kontakt),
     hero: await hero(ctx, { image: site.pageImages.kontakt, inner: html`<h1>Kontakt</h1>` }),
     main: html`<section class="section contact" aria-labelledby="contact-title">

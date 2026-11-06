@@ -7,6 +7,7 @@ import { buildSite, siteUrl } from "../render/build.ts";
 import { liveBuild } from "../render/publish.ts";
 import { isForeignWrite, keyMatches } from "./access.ts";
 import { serveStatic } from "./static.ts";
+import { canonicalRedirect, withoutTrailingSlash } from "./urls.ts";
 import { EditorApi } from "../editor-server/api.ts";
 
 /**
@@ -32,7 +33,7 @@ const KEY = process.env.HOFCHILBI_KEY ?? "";
  * Dev mode relaxes the editor's script-src for Vite's hot reload client.
  */
 const SITE_CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src https://www.google.com https://www.openstreetmap.org; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 const EDITOR_CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 
@@ -60,9 +61,8 @@ async function redirects(): Promise<Record<string, string>> {
 }
 
 /** Host as the visitor sent it (nginx forwards the original Host). */
-function isCanonicalHost(req: http.IncomingMessage): boolean {
-  const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(",")[0]!.trim().toLowerCase();
-  return host === new URL(siteUrl()).host;
+function requestHost(req: http.IncomingMessage): string {
+  return String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(",")[0]!.trim().toLowerCase();
 }
 
 function send(res: http.ServerResponse, status: number, body: string, type = "text/plain; charset=utf-8"): void {
@@ -78,9 +78,15 @@ async function handleSite(req: http.IncomingMessage, res: http.ServerResponse): 
   const p = pathname(req);
   if (p === "/health") return send(res, 200, "ok");
   if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Method Not Allowed");
+  const url = new URL(req.url ?? "/", "http://x");
+  const toCanonical = canonicalRedirect(requestHost(req), siteUrl(), url.pathname + url.search);
+  if (toCanonical) {
+    res.writeHead(301, { Location: toCanonical });
+    return void res.end();
+  }
   // Only the canonical host may be indexed. On hofchilbi.<domain> (before and after go-live)
   // search engines are told to stay away, so Google never lists a duplicate of www.hofchilbi.ch.
-  const canonical = isCanonicalHost(req);
+  const canonical = requestHost(req) === new URL(siteUrl()).host;
   if (!canonical) res.setHeader("X-Robots-Tag", "noindex");
   if (p === "/robots.txt") {
     return send(
@@ -89,10 +95,9 @@ async function handleSite(req: http.IncomingMessage, res: http.ServerResponse): 
       canonical ? `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl()}/sitemap.xml\n` : "User-agent: *\nDisallow: /\n",
     );
   }
-  // Trailing slash → canonical URL without it.
-  if (p.length > 1 && p.endsWith("/")) {
-    // Collapse leading slashes too: "//evil.com/" must never become "Location: //evil.com".
-    res.writeHead(301, { Location: "/" + p.replace(/^[/\\]+|\/+$/g, "") });
+  const noSlash = withoutTrailingSlash(p, url.search);
+  if (noSlash) {
+    res.writeHead(301, { Location: noSlash });
     return void res.end();
   }
   // Short way to the login. The editor's address stays out of the public files.

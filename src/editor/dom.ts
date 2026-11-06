@@ -58,12 +58,13 @@ export function toast(message: string, kind: "ok" | "error" = "ok", action?: { l
   toastTimer = window.setTimeout(() => el!.classList.remove("is-visible"), action ? 10000 : kind === "error" ? 8000 : 3500);
 }
 
-export function confirmDialog(message: string, okLabel = "Löschen", danger = true): Promise<boolean> {
+export function confirmDialog(message: string, okLabel = "Löschen", danger = true, details?: Node): Promise<boolean> {
   return new Promise((resolve) => {
     const dialog = h(
       "dialog",
       { class: "confirm" },
       h("p", {}, message),
+      details,
       h(
         "div",
         { class: "row row--end" },

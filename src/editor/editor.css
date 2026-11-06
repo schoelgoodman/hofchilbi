@@ -144,6 +144,10 @@ body {
   background: #fff;
   color: #000;
 }
+.nav a[aria-current="page"] .nav__count {
+  color: #fff;
+  background: #000;
+}
 .nav__label {
   margin: 1rem 0 0.25rem;
   padding: 0 0.6rem;
@@ -874,6 +878,124 @@ select {
 }
 .history__more {
   margin-top: 0.8rem;
+}
+
+/* An open list makes the row tall: the buttons stay at the top, next to the entry. */
+.history li:has(> div > .history__changes[open]) {
+  align-items: flex-start;
+}
+.history__changes summary {
+  margin-top: 0.25rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.history__changes[open] {
+  margin-top: 0.5rem;
+}
+.changes h3 {
+  margin: 0.7rem 0 0.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.changes ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+/* Not the rows of the Verlauf they sit in. */
+.history .changes li {
+  display: block;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+.changes__label {
+  font-size: 0.9rem;
+}
+.changes__tag {
+  margin-right: 0.4em;
+  padding: 0 0.35em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #17602f;
+  background: #dff3e4;
+}
+.changes__tag--gone {
+  color: #8f1d1d;
+  background: #fbe3e3;
+}
+.changes__text {
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.changes ins {
+  color: #17602f;
+  background: #dff3e4;
+  text-decoration: none;
+}
+.changes del {
+  color: #8f1d1d;
+  background: #fbe3e3;
+}
+.changes-preview {
+  max-height: 45vh;
+  margin-bottom: 1rem;
+  overflow-y: auto;
+}
+.changes-preview h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* ---- Website-Check */
+.checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.checks li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.8rem 1rem;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.checks li > div {
+  flex: 1 1 18rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.checks p {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+}
+.checks__ok {
+  padding: 0.8rem 1rem;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.nav__count {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-left: 0.5em;
+  padding: 0 0.35em;
+  font-size: 0.8em;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  color: #000;
+  background: #fff;
+  border-radius: 1em;
 }
 
 /* ---- Medien */
