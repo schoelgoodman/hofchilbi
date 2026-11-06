@@ -508,9 +508,9 @@ h3 {
   flex-direction: column;
   align-items: center;
   gap: clamp(30px, 6vh, 60px);
-  padding: 100px 20px 22vw;
+  padding: 100px 20px 0;
   background: var(--white);
-  overflow-y: auto;
+  overflow: hidden auto;
   opacity: 0;
   transition: opacity 0.25s;
 }
@@ -572,12 +572,15 @@ h3 {
     text-underline-offset: 0.12em;
   }
 }
+/* In the flow, last in the column: it can never cover the social icons, even when the menu scrolls.
+   Negative margin: edge to edge across the 20px padding of .nav. */
 .nav__skyline {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
+  flex-shrink: 0;
+  align-self: flex-start;
+  width: calc(100% + 40px);
+  max-width: none;
+  height: auto;
+  margin-left: -20px;
 }
 
 .socials {
@@ -594,6 +597,16 @@ h3 {
 }
 .nav .socials a {
   padding: 5px;
+}
+/* Phones with the browser bars showing: tighter, so the skyline fits without scrolling */
+@media (max-height: 740px) {
+  .nav {
+    padding-top: 88px;
+    gap: clamp(16px, 3.5vh, 30px);
+  }
+  .nav__links {
+    gap: clamp(14px, 3.5vh, 30px);
+  }
 }
 /* Phone in landscape: no room for the skyline, buttons side by side */
 @media (orientation: landscape) and (max-height: 520px) {
@@ -1581,6 +1594,16 @@ h3 {
   text-decoration: none;
   background: linear-gradient(currentColor, currentColor) left bottom / 100% 2px no-repeat;
 }
+/* Mouse: the same growing underline as the footer. Touch keeps it visible, there is no hover. */
+@media (hover: hover) {
+  .contact__mail a {
+    background-size: 0 2px;
+    transition: background-size 0.25s ease-out;
+  }
+  .contact__mail a:hover {
+    background-size: 100% 2px;
+  }
+}
 @media (max-width: 899px) {
   .contact__mail a {
     display: inline-block;
@@ -1923,11 +1946,6 @@ main:has(> .section--paper:last-child) + .footer {
   .footer__contact {
     grid-column: 1 / -1;
     order: 1;
-  }
-  .footer__contact .footer__list {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 24px;
   }
   .footer__orgs {
     grid-column: 1 / -1;
