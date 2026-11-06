@@ -26,11 +26,15 @@ function textEditor(
   body: string,
   fields: (f: Form) => (HTMLElement | null)[],
   save: (meta: unknown, body: string) => Promise<void>,
-  extra: HTMLElement[] = [],
+  /** Below the text, e.g. deleting: not beside «Speichern», where a thumb could hit it. */
+  footer?: HTMLElement,
   also?: AlsoSaved,
+  /** Fields below the text. */
+  fieldsBelow?: (f: Form) => (HTMLElement | null)[],
 ): HTMLElement {
   const form = new Form({ meta, body });
   const metaBox = h("div", { class: "form" });
+  const belowBox = h("div", { class: "form" });
   const editorBox = h("div", { class: "md" });
   const dirty = () => form.dirty() || Boolean(also?.form.dirty());
   const bar = saveBar(async () => {
@@ -52,8 +56,11 @@ function textEditor(
       bar.setDirty(true);
       handleSaveError(err, saving);
     }
-  }, extra);
-  const renderMeta = () => metaBox.replaceChildren(...fields(form).filter((x): x is HTMLElement => x !== null));
+  });
+  const renderMeta = () => {
+    metaBox.replaceChildren(...fields(form).filter((x): x is HTMLElement => x !== null));
+    belowBox.replaceChildren(...(fieldsBelow?.(form) ?? []).filter((x): x is HTMLElement => x !== null));
+  };
   form.onStructure = renderMeta;
   form.onDirty = () => bar.setDirty(dirty());
   if (also) also.form.onDirty = () => bar.setDirty(dirty());
@@ -68,7 +75,7 @@ function textEditor(
     })
     .then((ed) => (activeEditor = ed))
     .catch(() => toast("Der Texteditor konnte nicht geladen werden. Bitte Seite neu laden.", "error"));
-  return h("div", {}, metaBox, h("div", { class: "field" }, h("span", { class: "label" }, "Text"), editorBox), bar.el);
+  return h("div", {}, metaBox, h("div", { class: "field" }, h("span", { class: "label" }, "Text"), editorBox), belowBox, footer ? h("div", { class: "text__foot" }, footer) : null, bar.el);
 }
 
 // ---------------------------------------------------------------- News
@@ -112,17 +119,15 @@ export function newsScreen(ctx: Ctx, slug?: string): HTMLElement {
   const input = h("input", { type: "text", placeholder: "Titel der neuen News", "aria-label": "Titel der neuen News" });
   create.append(input, h("button", { type: "submit", class: "btn btn--primary" }, "+ News anlegen"));
 
-  // Narrow screens: the editor sits below the list, so picking a news must lead there.
-  if (current && matchMedia("(max-width: 1100px)").matches) {
-    requestAnimationFrame(() => document.querySelector(".split .editor")?.scrollIntoView());
-  }
+  // Narrow screens (.news--open): either the list or the open news, with a way back.
   return h(
     "div",
-    { class: "screen" },
+    { class: `screen${current ? " news--open" : ""}` },
+    current ? h("a", { class: "news__back", href: "#/news" }, "← Alle News") : null,
     h("h1", {}, "News"),
     h("p", { class: "intro" }, "News erscheinen oben auf der Startseite, die neueste zuerst. Neue News sind zuerst ein Entwurf und erst sichtbar, wenn «Entwurf» ausgeschaltet ist."),
     create,
-    h("div", { class: "split" }, listEl, current ? newsEditor(ctx, current) : h("p", { class: "muted" }, news.length ? "Links eine News auswählen." : "Noch keine News.")),
+    h("div", { class: "split" }, listEl, current ? newsEditor(ctx, current) : h("p", { class: "muted split__hint" }, news.length ? "Links eine News auswählen." : "Noch keine News.")),
   );
 }
 
@@ -200,14 +205,7 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
       ctx,
       { ...n.meta, draft: Boolean(n.meta.draft) },
       n.body,
-      (f) => [
-        text(f, "meta.title", "Titel"),
-        text(f, "meta.date", "Datum", { type: "date" }),
-        checkbox(f, "meta.draft", "Entwurf (auf der Website noch nicht sichtbar)"),
-        image(f, "meta.image", "Bild (optional)", { dir: "news", optional: true }),
-        f.get("meta.image") ? text(f, "meta.imageAlt", "Bildbeschreibung", { hint: "Kurz beschreiben, was zu sehen ist (für Google und blinde Menschen)." }) : null,
-        ...newsButtonFields(f, () => customButton, (v) => (customButton = v)),
-      ],
+      (f) => [text(f, "meta.title", "Titel")],
       async (meta, body) => {
         const r = await api.putNews(n.slug, meta, body, base);
         base = r.version;
@@ -216,7 +214,15 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
         toast(m.draft ? "Gespeichert (Entwurf, auf der Website nicht sichtbar)." : "Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
         announceSaved();
       },
-      [del],
+      del,
+      undefined,
+      (f) => [
+        text(f, "meta.date", "Datum", { type: "date" }),
+        checkbox(f, "meta.draft", "Entwurf (auf der Website noch nicht sichtbar)"),
+        image(f, "meta.image", "Bild (optional)", { dir: "news", optional: true }),
+        f.get("meta.image") ? text(f, "meta.imageAlt", "Bildbeschreibung", { hint: "Kurz beschreiben, was zu sehen ist (für Google und blinde Menschen)." }) : null,
+        ...newsButtonFields(f, () => customButton, (v) => (customButton = v)),
+      ],
     ),
   );
 }
@@ -277,7 +283,7 @@ export function pageScreen(
         toast("Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
         announceSaved();
       },
-      [],
+      undefined,
       also,
     ),
   );

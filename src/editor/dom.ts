@@ -23,8 +23,12 @@ function append(el: Element, children: Child[]): void {
   }
 }
 
+/** Phone layout: same breakpoint as the stylesheet. */
+export const isPhone = () => matchMedia("(max-width: 860px)").matches;
+
 let toastTimer: number | undefined;
-export function toast(message: string, kind: "ok" | "error" = "ok", action?: { label: string; run: () => void }): void {
+/** `stay`: visible until the next message (e.g. while an upload runs). */
+export function toast(message: string, kind: "ok" | "error" = "ok", action?: { label: string; run: () => void }, stay = false): void {
   let el = document.getElementById("toast");
   if (!el) {
     el = h("div", { id: "toast", role: "status", "aria-live": "polite" });
@@ -50,6 +54,7 @@ export function toast(message: string, kind: "ok" | "error" = "ok", action?: { l
   }
   el.className = `toast toast--${kind} is-visible`;
   clearTimeout(toastTimer);
+  if (stay) return;
   toastTimer = window.setTimeout(() => el!.classList.remove("is-visible"), action ? 10000 : kind === "error" ? 8000 : 3500);
 }
 

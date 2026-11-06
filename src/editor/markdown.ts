@@ -21,10 +21,30 @@ export async function markdownEditor(root: HTMLElement, value: string, onChange:
       [Crepe.Feature.Latex]: false,
       [Crepe.Feature.Table]: false,
       [Crepe.Feature.ImageBlock]: false,
-      [Crepe.Feature.TopBar]: false,
+      [Crepe.Feature.TopBar]: true,
     },
     featureConfigs: {
       [Crepe.Feature.Placeholder]: { text: placeholder, mode: "doc" },
+      [Crepe.Feature.LinkTooltip]: { inputPlaceholder: "Link einfügen …" },
+      // Phones only (editor.css): there is no hover for the block handle, and the selection bubble
+      // collides with the system's own menu. Same functions as those two, nothing more.
+      [Crepe.Feature.TopBar]: {
+        headingOptions: [
+          { label: "Absatz", level: null },
+          { label: "Titel gross", level: 1 },
+          { label: "Titel klein", level: 2 },
+        ],
+        buildTopBar: (bar) => {
+          const keep = (group: string, ...keys: string[]) => {
+            const g = bar.getGroup(group).group;
+            g.items = g.items.filter((i) => keys.includes(i.key));
+          };
+          keep("formatting", "bold", "italic");
+          keep("list", "bullet-list", "ordered-list");
+          keep("block");
+          keep("more");
+        },
+      },
       [Crepe.Feature.BlockEdit]: {
         textGroup: {
           label: "Text",

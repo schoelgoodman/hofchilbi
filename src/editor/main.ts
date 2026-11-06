@@ -2,7 +2,7 @@ import logoUrl from "../design/assets/hofchilbi-logo-white.svg";
 import skylineUrl from "../design/assets/skyline-white.svg";
 import "./editor.css";
 import { api, type State } from "./api.ts";
-import { h, toast } from "./dom.ts";
+import { h, isPhone, toast } from "./dom.ts";
 import type { Ctx } from "./screens/doc.ts";
 import { galleriesScreen } from "./screens/galleries.ts";
 import { historyScreen } from "./screens/history.ts";
@@ -69,10 +69,24 @@ const nav = h("nav", { class: "nav", "aria-label": "Bereiche" });
 const status = h("p", { class: "status", role: "status" });
 const feedback = h("div", {});
 const side = h("aside", { class: "side" });
+const menu = h("button", { type: "button", class: "side__menu", "aria-expanded": "false", onclick: () => setMenu(!side.classList.contains("side--open")) }, "Menü");
+
+function setMenu(open: boolean): void {
+  side.classList.toggle("side--open", open);
+  menu.setAttribute("aria-expanded", String(open));
+  menu.textContent = open ? "Schliessen" : "Menü";
+}
+// Also for the entry of the current screen, where the address does not change.
+nav.addEventListener("click", (e) => {
+  if ((e.target as Element).closest("a")) setMenu(false);
+});
+
+/** First screen. On a phone people mostly come to post a news item. */
+const home = () => (isPhone() ? "news" : GENERAL.hash);
 
 function route(): { name: string; arg?: string } {
-  const [, name = GENERAL.hash, arg] = location.hash.replace(/^#\/?/, "#/").split("/");
-  return { name: name || GENERAL.hash, arg };
+  const [, name = home(), arg] = location.hash.replace(/^#\/?/, "#/").split("/");
+  return { name: name || home(), arg };
 }
 
 const ctx: Ctx = {
@@ -121,29 +135,56 @@ function renderStatus(): void {
   status.replaceChildren(h("span", {}, text), !updating && stand ? h("small", {}, `Stand ${stand}`) : "");
 }
 
+const liveUrl = (r: Route) => `${state.publicUrl.replace(/\/$/, "")}${r.site?.(state) ?? "/"}`;
+const currentRoute = () => ROUTES.find((x) => x.hash === route().name) ?? GENERAL;
+
 /** Breadcrumb for subcategories, link to the live page on every screen. */
 function crumbs(r: Route): HTMLElement {
   const parent = PAGES.find((p) => p.hash === r.parent);
   const path = r.site?.(state) ?? null;
-  const base = state.publicUrl.replace(/\/$/, "");
   return h(
     "div",
     { class: "crumbs" },
     parent ? h("span", {}, h("a", { href: `#/${parent.hash}` }, parent.label), " / ", r.label) : h("span", {}),
-    h("a", { href: `${base}${path ?? "/"}`, target: "_blank", rel: "noopener" }, path ? "Seite ansehen ↗" : "Website ansehen ↗"),
+    h("a", { href: liveUrl(r), target: "_blank", rel: "noopener" }, path ? "Seite ansehen ↗" : "Website ansehen ↗"),
   );
 }
 
 async function render(): Promise<void> {
-  const { name, arg } = route();
-  const r = ROUTES.find((x) => x.hash === name) ?? GENERAL;
+  const { arg } = route();
+  const r = currentRoute();
   renderNav(r);
   renderFeedback();
   renderStatus();
   await disposeEditor();
   isDirty = () => false;
   main.replaceChildren(crumbs(r), buildWarning(), r.render(ctx, arg));
+  foldIntro();
   document.title = `${r.label} · Hofchilbi Redaktion`;
+}
+
+/** Phones: a long intro costs the whole first screen on every visit. Two lines, the rest on request. */
+function foldIntro(): void {
+  const intro = main.querySelector<HTMLElement>(".intro");
+  if (!intro || !isPhone()) return;
+  intro.classList.add("intro--folded");
+  if (intro.scrollHeight <= intro.clientHeight) {
+    intro.classList.remove("intro--folded");
+    return;
+  }
+  const more = h(
+    "button",
+    {
+      type: "button",
+      class: "intro__more",
+      onclick: () => {
+        intro.classList.remove("intro--folded");
+        more.remove();
+      },
+    },
+    "Mehr lesen",
+  );
+  intro.after(more);
 }
 
 /** Shown when the website could not be updated with the last save (old version stays online). */
@@ -179,6 +220,11 @@ async function watchBuild(): Promise<void> {
       if (old) old.replaceWith(next);
       else if (next) main.querySelector(".crumbs")?.after(next);
       if (fresh.build && !fresh.build.ok && wasOk !== false) toast("Gespeichert, aber die Website konnte nicht aktualisiert werden. Details oben.", "error");
+      // On phones the status sits inside the closed menu, so say it here.
+      else if (fresh.build?.ok && isPhone()) {
+        const url = liveUrl(currentRoute());
+        toast("Die Website ist aktualisiert.", "ok", { label: "Ansehen", run: () => window.open(url, "_blank", "noopener") });
+      }
       break;
     } catch {
       // Offline for a moment: keep trying.
@@ -200,7 +246,7 @@ window.addEventListener("hashchange", () => {
     return;
   }
   lastHash = location.hash;
-  side.classList.remove("side--open");
+  setMenu(false);
   render().then(() => main.focus({ preventScroll: true }));
   window.scrollTo(0, 0);
 });
@@ -217,23 +263,13 @@ async function start(): Promise<void> {
     app.replaceChildren(h("div", { class: "screen" }, h("h1", {}, "Redaktion nicht erreichbar"), h("p", {}, (err as Error).message)));
     return;
   }
-  const menu = h(
-    "button",
-    {
-      type: "button",
-      class: "side__menu",
-      "aria-expanded": "false",
-      onclick: () => menu.setAttribute("aria-expanded", String(side.classList.toggle("side--open"))),
-    },
-    "Menü",
-  );
   side.replaceChildren(
     h(
       "div",
       { class: "side__head" },
       h(
         "a",
-        { class: "side__brand", href: `#/${GENERAL.hash}` },
+        { class: "side__brand", href: `#/${home()}` },
         h("img", { src: logoUrl, alt: "Hofchilbi", width: 2652, height: 1324 }),
         h("span", {}, "Redaktion"),
       ),
@@ -248,7 +284,7 @@ async function start(): Promise<void> {
     ),
   );
   app.replaceChildren(h("a", { class: "skip", href: "#main" }, "Zum Inhalt"), h("div", { class: "layout" }, side, main));
-  if (!location.hash) history.replaceState(null, "", `#/${GENERAL.hash}`);
+  if (!location.hash) history.replaceState(null, "", `#/${home()}`);
   lastHash = location.hash;
   await render();
 }

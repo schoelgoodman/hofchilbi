@@ -23,6 +23,9 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
   (`ROUTES` in `src/editor/main.ts`). `site.yaml` is spread over several screens (`siteArea`).
 - Way to the editor: `/redaktion` on the site forwards to `EDITOR_URL` (set in the Nix module, never
   in public files); `site.js` sends the typed word `chilbi` or five taps on the footer logo there.
+- Phones (`isPhone()`, 860 px, same as the `@media` block at the end of `editor.css`): the first screen is
+  News instead of Allgemein, list actions sit inside the open item, the save bar only shows with
+  unsaved changes, Milkdown uses its top bar instead of hover handle and selection bubble.
 - Editor writes require header `X-Hofchilbi-Editor: 1` and a matching Origin (`src/server/access.ts`).
 
 ## Security model (Phase 4)

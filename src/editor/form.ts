@@ -1,5 +1,5 @@
 import { ApiError, api, thumb } from "./api.ts";
-import { clone, h, toast } from "./dom.ts";
+import { clone, h, isPhone, toast } from "./dom.ts";
 import { pickMedia } from "./mediaBrowser.ts";
 
 /**
@@ -121,12 +121,17 @@ const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/avif,image/gif,image
 /** Picks a file, uploads it, returns the media path (or null if cancelled/failed). */
 export function pickAndUpload(dir: string, accept: string, multiple = false): Promise<string[]> {
   return new Promise((resolve) => {
-    const input = h("input", { type: "file", accept, multiple });
+    // In the document: iOS Safari may not report the choice of a detached input.
+    const input = h("input", { type: "file", accept, multiple, hidden: true });
+    document.body.append(input);
+    input.addEventListener("cancel", () => input.remove());
     input.addEventListener("change", async () => {
       const files = [...(input.files ?? [])];
+      input.remove();
       const paths: string[] = [];
       for (const [i, f] of files.entries()) {
-        toast(files.length > 1 ? `Lade hoch: ${i + 1} von ${files.length} …` : "Lade hoch …");
+        // Stays until done: on mobile data a photo can take longer than a normal message lasts.
+        toast(files.length > 1 ? `Lade hoch: ${i + 1} von ${files.length} …` : "Lade hoch …", "ok", undefined, true);
         try {
           paths.push((await api.upload(dir, f)).path);
         } catch (err) {
@@ -259,7 +264,8 @@ export function linkOrFile(form: Form, path: string, label: string, dir: string,
       h("div", { class: "row" }, value ? h("a", { href: `/${value}`, target: "_blank", rel: "noopener", class: "btn btn--ghost" }, "Ansehen") : null, upload, pick),
     );
   } else {
-    const input = h("input", { type: "text", id, placeholder: "https://…", "aria-label": `${label}: Webadresse` });
+    // type=text because /geschichte is valid too; still no capital «Https» on phone keyboards.
+    const input = h("input", { type: "text", id, placeholder: "https://…", "aria-label": `${label}: Webadresse`, inputmode: "url", autocapitalize: "none", autocorrect: "off", spellcheck: "false" });
     input.value = value;
     if (err) input.setAttribute("aria-invalid", "true");
     input.addEventListener("input", () => form.set(path, input.value.trim() === "" ? undefined : input.value));
@@ -299,17 +305,40 @@ export interface ListOpts<I> {
 export function list<I>(form: Form, path: string, label: string, render: (itemPath: string, item: I, i: number) => HTMLElement[], o: ListOpts<I>): HTMLElement {
   const items = (form.get(path) as I[] | undefined) ?? [];
   const setItems = (next: I[]) => form.set(path, next, true);
+  const itemEl = (i: number) => document.querySelector(`.item[data-item="${path}.${i}"]`);
   const move = (i: number, d: number) => {
     const next = [...items];
     const [x] = next.splice(i, 1);
     next.splice(i + d, 0, x!);
+    // The open state moves along with the item.
+    const [from, to] = [`${path}.${i}`, `${path}.${i + d}`];
+    const [openFrom, openTo] = [openItems.get(from), openItems.get(to)];
+    openItems.set(to, openFrom ?? isOpenByDefault());
+    openItems.set(from, openTo ?? isOpenByDefault());
     setItems(next);
+    // Phones: the arrows sit inside the item, keep them under the finger.
+    if (isPhone()) itemEl(i + d)?.querySelector(".item__foot")?.scrollIntoView({ block: "nearest" });
   };
+  const remove = (item: I, i: number) => {
+    forgetOpen(path);
+    setItems(items.filter((_, j) => j !== i));
+    // Only the working copy so far, so no confirmation: «Rückgängig» or leaving without saving undoes it.
+    toast(`«${o.itemTitle(item, i) || "Eintrag"}» entfernt. Endgültig erst mit «Speichern».`, "ok", {
+      label: "Rückgängig",
+      run: () => {
+        const now = (form.get(path) as I[] | undefined) ?? [];
+        forgetOpen(path);
+        setItems([...now.slice(0, i), item, ...now.slice(i)]);
+      },
+    });
+  };
+  // Phones start collapsed: a row of titles is worth more than a few open forms and a long scroll.
+  const isOpenByDefault = () => !o.collapsed && !isPhone() && items.length <= 6;
   const rows = items.map((item, i) => {
     const err = Object.keys(form.errors).some((k) => k.startsWith(`${path}.${i}.`) || k === `${path}.${i}`);
     const details = h(
       "details",
-      { class: `item${err ? " item--error" : ""}`, open: err || (openItems.get(`${path}.${i}`) ?? (!o.collapsed && items.length <= 6)) },
+      { class: `item${err ? " item--error" : ""}`, "data-item": `${path}.${i}`, open: err || (openItems.get(`${path}.${i}`) ?? isOpenByDefault()) },
       h(
         "summary",
         {},
@@ -319,33 +348,22 @@ export function list<I>(form: Form, path: string, label: string, render: (itemPa
           { class: "item__tools" },
           h("button", { type: "button", class: "icon", title: "Nach oben", "aria-label": "Nach oben", disabled: i === 0, onclick: (e: Event) => (e.preventDefault(), move(i, -1)) }, "↑"),
           h("button", { type: "button", class: "icon", title: "Nach unten", "aria-label": "Nach unten", disabled: i === items.length - 1, onclick: (e: Event) => (e.preventDefault(), move(i, 1)) }, "↓"),
-          h(
-            "button",
-            {
-              type: "button",
-              class: "icon icon--danger",
-              title: "Löschen",
-              "aria-label": "Löschen",
-              onclick: (e: Event) => {
-                e.preventDefault();
-                forgetOpen(path);
-                setItems(items.filter((_, j) => j !== i));
-                // Only the working copy so far, so no confirmation: «Rückgängig» or leaving without saving undoes it.
-                toast(`«${o.itemTitle(item, i) || "Eintrag"}» entfernt. Endgültig erst mit «Speichern».`, "ok", {
-                  label: "Rückgängig",
-                  run: () => {
-                    const now = (form.get(path) as I[] | undefined) ?? [];
-                    forgetOpen(path);
-                    setItems([...now.slice(0, i), item, ...now.slice(i)]);
-                  },
-                });
-              },
-            },
-            "✕",
-          ),
+          h("button", { type: "button", class: "icon icon--danger", title: "Löschen", "aria-label": "Löschen", onclick: (e: Event) => (e.preventDefault(), remove(item, i)) }, "✕"),
         ),
       ),
-      h("div", { class: "item__body" }, render(`${path}.${i}`, item, i)),
+      h(
+        "div",
+        { class: "item__body" },
+        render(`${path}.${i}`, item, i),
+        // Phones: the same actions, here instead of on every row of the list.
+        h(
+          "div",
+          { class: "item__foot" },
+          h("button", { type: "button", class: "icon", "aria-label": "Nach oben", disabled: i === 0, onclick: () => move(i, -1) }, "↑"),
+          h("button", { type: "button", class: "icon", "aria-label": "Nach unten", disabled: i === items.length - 1, onclick: () => move(i, 1) }, "↓"),
+          h("button", { type: "button", class: "btn btn--danger-ghost", onclick: () => remove(item, i) }, "Löschen"),
+        ),
+      ),
     );
     details.addEventListener("toggle", () => openItems.set(`${path}.${i}`, details.open));
     return details;
@@ -358,8 +376,11 @@ export function list<I>(form: Form, path: string, label: string, render: (itemPa
       onclick: () => {
         // Indexes shift: forget open states of this list, open only the new item.
         forgetOpen(path);
-        openItems.set(`${path}.${o.addAtTop ? 0 : items.length}`, true);
+        const at = o.addAtTop ? 0 : items.length;
+        openItems.set(`${path}.${at}`, true);
         setItems(o.addAtTop ? [o.newItem(), ...items] : [...items, o.newItem()]);
+        // In a long list the new item would appear far below the button, out of sight.
+        itemEl(at)?.scrollIntoView({ block: "start" });
       },
     },
     `+ ${o.addLabel}`,
@@ -379,16 +400,17 @@ export interface SaveBar {
   setDirty(d: boolean): void;
 }
 
-export function saveBar(onSave: () => Promise<void>, extra: HTMLElement[] = []): SaveBar {
+export function saveBar(onSave: () => Promise<void>): SaveBar {
   const status = h("span", { class: "savebar__status" }, "Alles gespeichert");
-  const button = h("button", { type: "button", class: "btn btn--primary", disabled: true }, "Speichern & veröffentlichen");
-  const el = h("div", { class: "savebar" }, status, h("div", { class: "row" }, extra, button));
+  const LABEL = "Speichern & veröffentlichen";
+  const button = h("button", { type: "button", class: "btn btn--primary", disabled: true }, LABEL);
+  const el = h("div", { class: "savebar" }, status, h("div", { class: "row" }, button));
   let busy = false;
   button.addEventListener("click", async () => {
     if (busy) return;
     busy = true;
     button.disabled = true;
-    status.textContent = "Speichere …";
+    status.textContent = button.textContent = "Speichere …";
     try {
       await onSave();
     } finally {
@@ -399,6 +421,7 @@ export function saveBar(onSave: () => Promise<void>, extra: HTMLElement[] = []):
     el,
     setDirty(d: boolean) {
       button.disabled = !d;
+      button.textContent = LABEL;
       status.textContent = d ? "Ungespeicherte Änderungen" : "Alles gespeichert";
       el.classList.toggle("savebar--dirty", d);
     },
