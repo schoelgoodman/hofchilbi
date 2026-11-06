@@ -159,7 +159,7 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
     path: "/",
     title: `${site.title} | ${label}`,
     description: site.seo.description,
-    preload: await heroPreload(ctx, site.hero.image),
+    preload: await heroPreload(ctx, site.hero.image, true),
     hero: await hero(ctx, { image: site.hero.image, full: true, inner: heroInner }),
     main: html`${newsSection}${helper}${anz}${sponsorSection}`,
     jsonLd: {
@@ -220,7 +220,7 @@ export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
     decades.set(d, [...(decades.get(d) ?? []), r]);
   }
   const decadePanels = await Promise.all(
-    [...decades].map(async ([decade, items]) => {
+    [...decades].map(async ([decade, items], index) => {
       const lis = await Promise.all(
         items.map(async (r) => {
           const photo = r.photo ? await ctx.images.img(r.photo, { alt: "", sizes: "44px", widths: [88], aspect: 1, cls: "anz-list__photo" }) : "";
@@ -230,7 +230,7 @@ export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
             : html`<li class="anz-list__gap"><span class="anz-list__year">${years}</span><span class="anz-list__name">${r.note}</span></li>`;
         }),
       );
-      return html`<div class="anz-decade"><h3 class="tier">${decade}er</h3><ul class="anz-list">${lis}</ul></div>`;
+      return html`<details class="anz-decade"${index === 0 ? html` open` : ""}><summary><h3 class="tier">${decade}er</h3></summary><ul class="anz-list">${lis}</ul></details>`;
     }),
   );
 

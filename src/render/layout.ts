@@ -32,8 +32,15 @@ export interface PageDef {
   preload?: { srcset: string; sizes: string };
 }
 
-export async function heroPreload(ctx: Ctx, image: string): Promise<{ srcset: string; sizes: string }> {
-  return { srcset: (await ctx.images.responsive(image, {})).srcset, sizes: "100vw" };
+/**
+ * Rendered width of a hero photo. It is cropped to cover the hero (object-fit), so on a portrait
+ * phone the height decides: height × 1.5 for a 3:2 photo (see .hero and .hero--sub in site.css).
+ */
+const heroSizes = (full: boolean | undefined): string =>
+  full ? "max(100vw, 150vh)" : "(max-width: 599px) max(100vw, 68vh), max(100vw, 105vh)";
+
+export async function heroPreload(ctx: Ctx, image: string, full?: boolean): Promise<{ srcset: string; sizes: string }> {
+  return { srcset: (await ctx.images.responsive(image, {})).srcset, sizes: heroSizes(full) };
 }
 
 /** "Presenting Partner" + logo; label and logo share their left edge. */
@@ -47,7 +54,7 @@ async function partnerBlock(ctx: Ctx, cls: string): Promise<Raw | ""> {
 
 /** Hero with background photo and skyline. `full` = start page height. */
 export async function hero(ctx: Ctx, o: { image: string; full?: boolean; inner: Raw }): Promise<Raw> {
-  const bg = await ctx.images.img(o.image, { alt: "", sizes: "100vw", cls: "hero__bg", eager: true });
+  const bg = await ctx.images.img(o.image, { alt: "", sizes: heroSizes(o.full), cls: "hero__bg", eager: true });
   return html`<div class="hero${o.full ? "" : " hero--sub"}">
   ${bg}
   <div class="hero__content">${o.inner}</div>
@@ -143,7 +150,7 @@ async function footer(ctx: Ctx, current: string): Promise<Raw> {
         <p class="footer__h">Seiten</p>
         <ul class="footer__list">${navLinks(current)}</ul>
       </nav>
-      <div>
+      <div class="footer__contact">
         <p class="footer__h">Kontakt</p>
         <ul class="footer__list">
           <li><a href="mailto:${site.contact.email}">${site.contact.email}</a></li>

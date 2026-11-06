@@ -151,12 +151,17 @@ h3 {
   cursor: pointer;
   transition: background-color 0.2s, color 0.2s;
 }
-.button:hover {
-  background: var(--fg);
-  color: var(--bg);
+@media (hover: hover) {
+  .button:hover {
+    background: var(--fg);
+    color: var(--bg);
+  }
 }
+/* Touch: the same fill while pressed (hover styles only apply to devices with a mouse) */
 .button:active {
   transform: translateY(1px);
+  background: var(--fg);
+  color: var(--bg);
 }
 .button--dark {
   color: var(--white);
@@ -165,9 +170,15 @@ h3 {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-.button--dark:hover {
+.button--dark:active {
   color: var(--black);
   background: transparent;
+}
+@media (hover: hover) {
+  .button--dark:hover {
+    color: var(--black);
+    background: transparent;
+  }
 }
 .button--sm {
   font-size: 0.9rem;
@@ -224,6 +235,10 @@ h3 {
   z-index: -1;
   background: rgb(0 0 0 / 0.3);
 }
+/* Subpage titles often sit on bright photos */
+.hero--sub::before {
+  background: rgb(0 0 0 / 0.42);
+}
 .hero__skyline {
   position: absolute;
   left: 0;
@@ -244,14 +259,29 @@ h3 {
   font-size: clamp(2.4rem, min(11vh, 7.5vw), 8rem);
   text-transform: uppercase;
   margin: 0;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .hero__date {
   font-stretch: 68%;
   font-weight: 900;
-  font-size: clamp(1.9rem, min(10vh, 6.8vw), 7.5rem);
+  font-size: clamp(1.55rem, min(8vh, 5.4vw), 6rem);
   line-height: 1;
   text-transform: uppercase;
   margin: 0 0 0.25em;
+}
+/* Phones: the title fills the width (the desktop formula leaves it at the minimum), shorter subpage heroes */
+@media (max-width: 599px) {
+  .hero--sub {
+    min-height: 45vh;
+    min-height: 45svh;
+  }
+  .hero h1 {
+    font-size: clamp(2.4rem, min(14vw, 11vh), 8rem);
+  }
+  .hero__date {
+    font-size: clamp(1.55rem, 8.5vw, 6rem);
+  }
 }
 
 /* ---------- Site header ----------
@@ -319,8 +349,10 @@ h3 {
   text-decoration: none;
   transition: opacity 0.2s;
 }
-.header__partner:hover {
-  opacity: 0.8;
+@media (hover: hover) {
+  .header__partner:hover {
+    opacity: 0.8;
+  }
 }
 .header__partner img {
   width: var(--logo-w);
@@ -328,6 +360,12 @@ h3 {
 }
 .header.is-solid .header__partner {
   --logo-w: 76px;
+}
+/* No nav in the bar below 900px: nearly opaque, otherwise it turns muddy grey over white sections */
+@media (max-width: 899px) {
+  .header.is-solid .header__inner {
+    background: rgb(18 18 18 / 0.92);
+  }
 }
 .header__nav {
   display: none;
@@ -364,9 +402,13 @@ h3 {
   transform-origin: left;
   transition: transform 0.25s ease-out;
 }
-.header__nav a:hover::after,
 .header__nav a[aria-current="page"]::after {
   transform: scaleX(1);
+}
+@media (hover: hover) {
+  .header__nav a:hover::after {
+    transform: scaleX(1);
+  }
 }
 .header__cta {
   display: none;
@@ -414,7 +456,7 @@ h3 {
 .menu-button {
   position: relative;
   width: 44px;
-  height: 38px;
+  height: 44px;
   padding: 0;
   border: 0;
   background: none;
@@ -432,13 +474,13 @@ h3 {
   background: currentColor;
 }
 .menu-button::before {
-  top: 7px;
+  top: 10px;
 }
 .menu-button span {
-  top: 17px;
+  top: 20px;
 }
 .menu-button::after {
-  top: 27px;
+  top: 30px;
 }
 .menu-button--close {
   color: var(--black);
@@ -448,7 +490,7 @@ h3 {
 }
 .menu-button--close::before,
 .menu-button--close::after {
-  top: 17px;
+  top: 20px;
 }
 .menu-button--close::before {
   transform: rotate(45deg);
@@ -464,7 +506,6 @@ h3 {
   z-index: 999;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
   gap: clamp(30px, 6vh, 60px);
   padding: 100px 20px 22vw;
@@ -503,7 +544,7 @@ h3 {
 }
 .nav__links {
   list-style: none;
-  margin: 0;
+  margin: auto 0 0; /* with .nav .socials: centred, but the top stays reachable when it overflows */
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -519,11 +560,17 @@ h3 {
   text-decoration: none;
   color: var(--black);
 }
-.nav__links a:hover,
 .nav__links a[aria-current="page"] {
   text-decoration: underline;
   text-decoration-thickness: 0.06em;
   text-underline-offset: 0.12em;
+}
+@media (hover: hover) {
+  .nav__links a:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 0.06em;
+    text-underline-offset: 0.12em;
+  }
 }
 .nav__skyline {
   position: absolute;
@@ -542,6 +589,30 @@ h3 {
   margin: 0;
   padding: 0;
 }
+.nav .socials {
+  margin-bottom: auto;
+}
+.nav .socials a {
+  padding: 5px;
+}
+/* Phone in landscape: no room for the skyline, buttons side by side */
+@media (orientation: landscape) and (max-height: 520px) {
+  .nav {
+    padding: 16px 20px;
+    gap: 16px;
+  }
+  .nav__links {
+    gap: 14px;
+  }
+  .nav__cta {
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    width: min(100%, 480px);
+  }
+  .nav__skyline {
+    display: none;
+  }
+}
 .socials img {
   height: 34px;
   width: auto;
@@ -550,9 +621,11 @@ h3 {
   display: block;
   transition: transform 0.2s ease-out, opacity 0.2s;
 }
-.socials a:hover {
-  transform: translateY(-2px);
-  opacity: 0.75;
+@media (hover: hover) {
+  .socials a:hover {
+    transform: translateY(-2px);
+    opacity: 0.75;
+  }
 }
 
 /* ---------- Sections ---------- */
@@ -775,8 +848,10 @@ h3 {
   background: var(--white);
   padding: 16px 24px;
 }
-.presenting:hover .presenting__label {
-  color: var(--white);
+@media (hover: hover) {
+  .presenting:hover .presenting__label {
+    color: var(--white);
+  }
 }
 
 .tiles {
@@ -829,9 +904,11 @@ h3 {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
   transition: box-shadow 0.2s, transform 0.2s;
 }
-a.tile:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 24px rgb(0 0 0 / 0.1);
+@media (hover: hover) {
+  a.tile:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 24px rgb(0 0 0 / 0.1);
+  }
 }
 .tile__logo {
   flex: 1;
@@ -879,6 +956,12 @@ a.tile:hover {
   font-size: 0.9rem;
   font-weight: 600;
 }
+/* Phones: the logo says it already */
+@media (max-width: 599px) {
+  .tile__name {
+    display: none;
+  }
+}
 
 /* Gönner: last tier of the partner section, a white panel listed in columns */
 .goenner {
@@ -924,8 +1007,10 @@ a.tile:hover {
   transform-origin: left;
   transition: transform 0.35s ease-out;
 }
-.goenner__list li:hover::after {
-  transform: scaleX(1);
+@media (hover: hover) {
+  .goenner__list li:hover::after {
+    transform: scaleX(1);
+  }
 }
 
 .goenner__name {
@@ -1035,6 +1120,32 @@ a.tile:hover {
   font-weight: 800;
   line-height: 1.2;
 }
+/* Phones: year above the text, so the text gets the full width */
+@media (max-width: 599px) {
+  .timeline {
+    --year-size: 1.9rem;
+  }
+  .timeline::before {
+    left: 4px;
+  }
+  .timeline__item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding-left: 26px;
+  }
+  .timeline__item::before {
+    left: 0;
+  }
+  .timeline__year {
+    text-align: left;
+  }
+  .timeline__text {
+    padding: 0;
+  }
+  .timeline__fact {
+    margin: 6px 0 0;
+  }
+}
 
 /* Anzapfer: current one featured, the rest grouped by decade in white panels */
 .section--paper {
@@ -1094,6 +1205,50 @@ a.tile:hover {
 .anz-decade .tier {
   text-transform: none;
 }
+.anz-decade summary {
+  list-style: none;
+}
+.anz-decade summary::-webkit-details-marker {
+  display: none;
+}
+/* Below 900px the decades are an accordion, newest open (site.js opens all on wider screens) */
+@media (max-width: 899px) {
+  .anz-decades {
+    gap: 10px;
+    margin-top: clamp(30px, 6vw, 44px);
+  }
+  .anz-decade summary {
+    background: var(--white);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+    cursor: pointer;
+  }
+  .anz-decade .tier {
+    justify-content: space-between;
+    min-height: 56px;
+    margin: 0;
+    padding: 0 clamp(20px, 3vw, 36px);
+  }
+  .anz-decade .tier::before {
+    display: none;
+  }
+  .anz-decade .tier::after {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    margin-right: 3px;
+    background: none;
+    border-right: 2px solid var(--black);
+    border-bottom: 2px solid var(--black);
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform 0.2s ease-out;
+  }
+  .anz-decade[open] .tier::after {
+    transform: translateY(2px) rotate(-135deg);
+  }
+  .anz-list {
+    padding-top: 0;
+  }
+}
 .anz-list {
   list-style: none;
   margin: 0;
@@ -1126,8 +1281,10 @@ a.tile:hover {
   transform-origin: left;
   transition: transform 0.35s ease-out;
 }
-.anz-list li:hover::after {
-  transform: scaleX(1);
+@media (hover: hover) {
+  .anz-list li:hover::after {
+    transform: scaleX(1);
+  }
 }
 .anz-list__year {
   flex: none;
@@ -1191,8 +1348,10 @@ a.tile:hover {
   object-fit: cover;
   transition: transform 0.4s ease-out;
 }
-.year-card:hover img {
-  transform: scale(1.03);
+@media (hover: hover) {
+  .year-card:hover img {
+    transform: scale(1.03);
+  }
 }
 .year-card::after {
   content: "";
@@ -1249,8 +1408,10 @@ a.tile:hover {
 .back-link::before {
   content: "← ";
 }
-.back-link:hover {
-  background-size: 100% 1px;
+@media (hover: hover) {
+  .back-link:hover {
+    background-size: 100% 1px;
+  }
 }
 .year-nav ul {
   display: flex;
@@ -1269,13 +1430,28 @@ a.tile:hover {
   text-decoration: none;
   transition: border-color 0.2s, background-color 0.2s, color 0.2s;
 }
-.year-nav a:hover {
-  border-color: var(--black);
+@media (hover: hover) {
+  .year-nav a:hover {
+    border-color: var(--black);
+  }
 }
 .year-nav a[aria-current="page"] {
   background: var(--black);
   border-color: var(--black);
   color: var(--white);
+}
+@media (max-width: 899px) {
+  .back-link {
+    display: inline-block;
+    padding: 10px 0;
+    background-origin: content-box;
+  }
+  .year-nav a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 1em;
+  }
 }
 .gallery-count {
   font-size: 0.8rem;
@@ -1313,13 +1489,16 @@ a.tile:hover {
   object-fit: cover;
   transition: transform 0.3s;
 }
-.gallery a:hover img {
-  transform: scale(1.03);
+@media (hover: hover) {
+  .gallery a:hover img {
+    transform: scale(1.03);
+  }
 }
 
 .lightbox {
   width: 100vw;
   height: 100vh;
+  height: 100dvh; /* otherwise the buttons at the bottom end up under the browser's toolbar */
   max-width: none;
   max-height: none;
   margin: 0;
@@ -1398,6 +1577,13 @@ a.tile:hover {
   text-decoration: none;
   background: linear-gradient(currentColor, currentColor) left bottom / 100% 2px no-repeat;
 }
+@media (max-width: 899px) {
+  .contact__mail a {
+    display: inline-block;
+    padding: 6px 0;
+    background-origin: content-box;
+  }
+}
 .contact__tiles {
   list-style: none;
   margin: 0;
@@ -1424,10 +1610,12 @@ a.tile:hover {
   text-decoration: none;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
-.contact-tile:hover {
-  border-color: var(--black);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgb(0 0 0 / 0.08);
+@media (hover: hover) {
+  .contact-tile:hover {
+    border-color: var(--black);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgb(0 0 0 / 0.08);
+  }
 }
 .contact-tile__title {
   display: flex;
@@ -1497,8 +1685,10 @@ a.tile:hover {
   object-fit: cover;
   transition: transform 0.4s ease-out;
 }
-.member:hover .member__photo img {
-  transform: scale(1.03);
+@media (hover: hover) {
+  .member:hover .member__photo img {
+    transform: scale(1.03);
+  }
 }
 .member__initials {
   display: flex;
@@ -1552,10 +1742,14 @@ main:has(> .section--paper:last-child) + .footer {
   background: linear-gradient(currentColor, currentColor) left bottom / 0 1px no-repeat;
   transition: background-size 0.25s ease-out;
 }
-.footer__list a:hover,
-.footer__legal a:hover,
 .footer__list a[aria-current="page"] {
   background-size: 100% 1px;
+}
+@media (hover: hover) {
+  .footer__list a:hover,
+  .footer__legal a:hover {
+    background-size: 100% 1px;
+  }
 }
 .footer__top {
   display: flex;
@@ -1587,11 +1781,6 @@ main:has(> .section--paper:last-child) + .footer {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-}
-@media (max-width: 599px) {
-  .footer__event {
-    text-align: left;
-  }
 }
 .footer__cols {
   display: grid;
@@ -1636,22 +1825,28 @@ main:has(> .section--paper:last-child) + .footer {
   gap: 12px;
 }
 /* With labels: same growing underline as the other footer links, icon nudges up */
-.socials--labels a:hover {
-  transform: none;
-  opacity: 1;
+@media (hover: hover) {
+  .socials--labels a:hover {
+    transform: none;
+    opacity: 1;
+  }
 }
 .socials--labels img {
   transition: transform 0.2s ease-out;
 }
-.socials--labels a:hover img {
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .socials--labels a:hover img {
+    transform: translateY(-2px);
+  }
 }
 .socials--labels span {
   background: linear-gradient(currentColor, currentColor) left bottom / 0 1px no-repeat;
   transition: background-size 0.25s ease-out;
 }
-.socials--labels a:hover span {
-  background-size: 100% 1px;
+@media (hover: hover) {
+  .socials--labels a:hover span {
+    background-size: 100% 1px;
+  }
 }
 .socials--labels img {
   width: 22px;
@@ -1674,6 +1869,71 @@ main:has(> .section--paper:last-child) + .footer {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+/* Touch sizes: rows of about 44px */
+@media (max-width: 899px) {
+  .footer__list {
+    gap: 0;
+  }
+  .footer__list a,
+  .footer__legal a {
+    display: inline-block;
+    padding: 11px 0;
+    background-origin: content-box;
+  }
+  .socials--labels {
+    gap: 0;
+  }
+  .socials--labels a {
+    padding: 11px 0;
+  }
+  .footer__h {
+    margin-bottom: 4px;
+  }
+}
+/* Phones: logo and date on one line, links in two columns, the organisers side by side */
+@media (max-width: 599px) {
+  .footer__top {
+    flex-wrap: nowrap;
+    gap: 16px;
+    padding-bottom: 22px;
+  }
+  .footer__logo img {
+    width: 34vw;
+  }
+  .footer__date {
+    font-size: 6.4vw;
+  }
+  .footer__place {
+    font-size: 0.75rem;
+  }
+  .footer__cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 16px;
+    padding: 24px 0;
+  }
+  .footer__contact {
+    grid-column: 1 / -1;
+    order: 1;
+  }
+  .footer__contact .footer__list {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 24px;
+  }
+  .footer__orgs {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    order: 2;
+  }
+  .footer .footer__partner {
+    --logo-w: min(150px, 38vw);
+  }
+  .footer__bottom {
+    align-items: center;
+    padding-top: 10px;
+  }
 }
 
 /* 404 */

@@ -74,6 +74,19 @@
     });
   }
 
+  // ---------- Anzapfer decades ----------
+  // An accordion on phones (the HTML has only the newest open); wide screens show them all.
+  const decades = [...document.querySelectorAll(".anz-decade")];
+  if (decades.length) {
+    const wide = window.matchMedia("(min-width: 900px)");
+    const sync = () => decades.forEach((d, i) => (d.open = wide.matches || i === 0));
+    if (wide.matches) sync();
+    wide.addEventListener("change", sync);
+    for (const d of decades) {
+      d.querySelector("summary").addEventListener("click", (e) => wide.matches && e.preventDefault());
+    }
+  }
+
   // ---------- Gallery lightbox ----------
   const links = [...document.querySelectorAll("[data-lightbox]")];
   if (links.length && "HTMLDialogElement" in window) {
