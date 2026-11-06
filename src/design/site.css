@@ -256,7 +256,7 @@ h3 {
 
 /* ---------- Site header ----------
    Over the hero at first (transparent, full width). With JS (html.js-header) it is fixed: after
-   scrolling it becomes a floating dark "pill", hidden while scrolling down, back on scrolling up. */
+   scrolling it becomes a floating dark bar (square, like all buttons and tiles), hidden while scrolling down, back on scrolling up. */
 .header {
   position: absolute;
   inset: 0 0 auto;
@@ -277,21 +277,16 @@ h3 {
   width: 100%;
   margin: 0 auto;
   padding: clamp(14px, 2vw, 24px) var(--pad);
-  border-radius: 0;
-  transition: width 0.35s ease, margin 0.35s ease, padding 0.35s ease, background-color 0.35s, border-radius 0.35s, box-shadow 0.35s;
+  transition: width 0.35s ease, margin 0.35s ease, padding 0.35s ease, background-color 0.35s, box-shadow 0.35s;
 }
 .header.is-solid .header__inner {
   width: min(100% - 20px, 1180px);
   margin-top: 10px;
-  padding: 8px 10px 8px 22px;
-  border-radius: 999px;
+  padding: 8px 10px 8px 18px;
   background: rgb(18 18 18 / 0.72);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   backdrop-filter: blur(14px) saturate(140%);
   box-shadow: 0 8px 30px rgb(0 0 0 / 0.18), inset 0 0 0 1px rgb(255 255 255 / 0.08);
-}
-.header.is-solid .header__cta {
-  border-radius: 999px;
 }
 /* Hofchilbi logo | präsentiert von + partner logo */
 .header__brand {
