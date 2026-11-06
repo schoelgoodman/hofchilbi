@@ -33,6 +33,9 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
   arrows for keyboards, copy. `fixedOrder` where the site sorts by itself (Anzapfer by year).
 - Verlauf: `History.prune` (`git.ts`) permanently rewrites the content git at start and daily: 90 days,
   newest 30 commits always stay. It also runs on `dev-content` with `npm run dev`.
+- Icon: the shield from the logo, in three identical copies (`src/design/assets/favicon.svg`, `src/editor/public/favicon.svg`,
+  `modules/services/hofchilbi/icon.svg`, used by both Neo services). The site generates its `apple-touch-icon.png`, the editor has a
+  checked-in one in `public/`: change them together.
 - Editor writes require header `X-Hofchilbi-Editor: 1` and a matching Origin (`src/server/access.ts`).
 
 ## Security model (Phase 4)

@@ -64,8 +64,8 @@ export async function writeAssets(outDir: string): Promise<Assets> {
   const js = await readFile(path.join(designDir, "site.js"), "utf8");
   const favicon = await readFile(path.join(designDir, "assets", "favicon.svg"));
   await writeFile(path.join(outDir, "favicon.svg"), favicon);
-  // Home-screen icon for iOS/Android (they don't use SVG favicons).
-  await sharp(favicon, { density: 600 }).resize(180, 180).png().toFile(path.join(outDir, "apple-touch-icon.png"));
+  // Home-screen icon for iOS/Android (they don't use SVG favicons). Opaque: iOS would fill transparency itself.
+  await sharp(favicon).resize(148, 148).extend({ top: 16, bottom: 16, left: 16, right: 16, background: "#000" }).flatten({ background: "#000" }).png().toFile(path.join(outDir, "apple-touch-icon.png"));
 
   return { css: await put("site.css", css), js: await put("site.js", js), fontLatin, svg, favicon: "/favicon.svg" };
 }
