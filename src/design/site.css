@@ -1764,6 +1764,10 @@ main:has(> .section--paper:last-child) + .footer {
   padding-bottom: clamp(28px, 4vw, 48px);
   border-bottom: 1px solid rgb(255 255 255 / 0.15);
 }
+/* Quick taps must arrive as taps, not as double-tap zoom (site.js). */
+.footer__logo {
+  touch-action: manipulation;
+}
 .footer__logo img {
   width: clamp(170px, 18vw, 240px);
 }

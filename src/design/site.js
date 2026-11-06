@@ -87,6 +87,30 @@
     }
   }
 
+  // ---------- Way to the Redaktion ----------
+  // Not protection (the login is), just a shortcut for editors: type the word on a keyboard, or
+  // tap the footer logo five times on a touch screen. The server forwards /redaktion.
+  const WORD = "chilbi";
+  let typed = "";
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+    if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
+    typed = (typed + e.key.toLowerCase()).slice(-WORD.length);
+    if (typed === WORD) location.href = "/redaktion";
+  });
+  const footerLogo = document.querySelector(".footer__logo");
+  if (footerLogo && window.matchMedia("(hover: none)").matches) {
+    let taps = 0;
+    let timer;
+    footerLogo.addEventListener("click", (e) => {
+      e.preventDefault();
+      clearTimeout(timer);
+      if (++taps >= 5) location.href = "/redaktion";
+      // A normal single tap still leads to the start page, a moment later.
+      else timer = setTimeout(() => (location.href = footerLogo.href), 400);
+    });
+  }
+
   // ---------- Gallery lightbox ----------
   const links = [...document.querySelectorAll("[data-lightbox]")];
   if (links.length && "HTMLDialogElement" in window) {

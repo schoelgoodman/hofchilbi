@@ -21,6 +21,8 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
 - Site builds go to `site/build-*`, then `site/current` is swapped atomically (`src/render/publish.ts`).
 - Editor menu mirrors the website: pages are main entries, what appears on them sits underneath
   (`ROUTES` in `src/editor/main.ts`). `site.yaml` is spread over several screens (`siteArea`).
+- Way to the editor: `/redaktion` on the site forwards to `EDITOR_URL` (set in the Nix module, never
+  in public files); `site.js` sends the typed word `chilbi` or five taps on the footer logo there.
 - Editor writes require header `X-Hofchilbi-Editor: 1` and a matching Origin (`src/server/access.ts`).
 
 ## Security model (Phase 4)

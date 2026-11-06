@@ -8,6 +8,8 @@
   }:
     with lib; let
       cfg = config.neo.services.hofchilbi;
+      redaktion = config.neo.services.hofchilbi-redaktion;
+      domain = config.neo.services.swag.domain or null;
       appdata = "${config.neo.core.volumes.appdata}/hofchilbi";
       image = withSystem pkgs.stdenv.hostPlatform.system ({config, ...}: config.packages.hofchilbi-image);
       docker = "${config.virtualisation.docker.package}/bin/docker";
@@ -53,6 +55,8 @@
             CONTENT_DIR = "/content";
             SITE_DIR = "/site";
             SITE_URL = cfg.siteUrl;
+            # /redaktion forwards here. Only in the running server, never in the public files.
+            EDITOR_URL = optionalString (redaktion.enabled && domain != null) "https://${redaktion.subdomain}.${domain}";
             PORT = "4330";
           };
           # Same owner as the preStart dirs, otherwise new files belong to root.

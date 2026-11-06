@@ -43,6 +43,9 @@ If something fails: send the operator the failing command, its output and
 `journalctl -u hofchilbi-image -u docker-hofchilbi -u docker-hofchilbi-redaktion -n 80`.
 Do not change code, delete appdata or edit nginx confs by hand.
 
+Shortcut to the login: `curl -sI https://hofchilbi.<domain>/redaktion` → `302`, `location:` the
+Redaktion address. No Neo setting needed, the address comes from the service settings.
+
 Redaktion health (after content is installed):
 - `docker logs hofchilbi-redaktion --tail 20` → `editor: listening on :4330`, no errors.
 - `git -C <appdata>/hofchilbi/content log --oneline | head -3` → at least «Stand beim Start der Redaktion».

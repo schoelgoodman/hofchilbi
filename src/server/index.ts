@@ -21,6 +21,8 @@ const ROLE = process.env.ROLE as Role | undefined;
 const PORT = Number(process.env.PORT ?? 4330);
 const EDITOR_PORT = Number(process.env.EDITOR_PORT ?? PORT + 1);
 const PRODUCTION = process.env.NODE_ENV === "production";
+/** Where /redaktion on the site forwards to. Set on Neo; empty: no such address. */
+const EDITOR_URL = process.env.EDITOR_URL || (PRODUCTION ? "" : `http://localhost:${EDITOR_PORT}`);
 /** Shared secret nginx sends after TinyAuth. Delivered via a secrets file on Neo, never the Nix store. */
 const KEY = process.env.HOFCHILBI_KEY ?? "";
 
@@ -91,6 +93,11 @@ async function handleSite(req: http.IncomingMessage, res: http.ServerResponse): 
   if (p.length > 1 && p.endsWith("/")) {
     // Collapse leading slashes too: "//evil.com/" must never become "Location: //evil.com".
     res.writeHead(301, { Location: "/" + p.replace(/^[/\\]+|\/+$/g, "") });
+    return void res.end();
+  }
+  // Short way to the login. The editor's address stays out of the public files.
+  if (p === "/redaktion" && EDITOR_URL) {
+    res.writeHead(302, { Location: EDITOR_URL, "Cache-Control": "no-store", "X-Robots-Tag": "noindex" });
     return void res.end();
   }
   const target = (await redirects())[p];
