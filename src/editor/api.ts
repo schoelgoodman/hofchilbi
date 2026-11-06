@@ -92,6 +92,7 @@ export const api = {
   state: () => call<State>("GET", "/api/state"),
   putDoc: (name: string, data: unknown, base: string) => call<{ version: string }>("PUT", `/api/doc/${name}`, { data, base }),
   createNews: (title: string) => call<{ slug: string }>("POST", "/api/news", { title }),
+  copyNews: (slug: string) => call<{ slug: string }>("POST", `/api/news/${slug}/copy`, {}),
   putNews: (slug: string, meta: unknown, body: string, base: string) => call<{ version: string }>("PUT", `/api/news/${slug}`, { meta, body, base }),
   deleteNews: (slug: string, base: string) => call<{ hash: string; file: string }>("DELETE", `/api/news/${slug}?base=${encodeURIComponent(base)}`),
   putPage: (name: string, meta: unknown, body: string, base: string) => call<{ version: string }>("PUT", `/api/page/${name}`, { meta, body, base }),

@@ -98,6 +98,7 @@ const ctx: Ctx = {
     isDirty = () => false;
     await render();
   },
+  isDirty: () => isDirty(),
   guard(fn) {
     isDirty = fn;
   },

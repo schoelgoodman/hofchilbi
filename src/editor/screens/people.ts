@@ -6,7 +6,7 @@ export function anzapferScreen(ctx: Ctx): HTMLElement {
     ctx,
     "anzapfer",
     "Anzapfer",
-    "Der neueste Eintrag mit Name erscheint mit Foto auf der Startseite und oben auf der Seite Geschichte. Fotos älterer Anzapfer erscheinen klein in der Liste. Für Jahre ohne Hofchilbi statt eines Namens einen Hinweis eintragen.",
+    "Der neueste Eintrag mit Name erscheint mit Foto auf der Startseite und oben auf der Seite Geschichte. Fotos älterer Anzapfer erscheinen klein in der Liste. Für Jahre ohne Hofchilbi statt eines Namens einen Hinweis eintragen. Die Website sortiert die Liste selbst nach Jahr.",
     (f) => [
       list<{ year: number; name?: string; note?: string; photo?: string }>(
         f,
@@ -24,6 +24,7 @@ export function anzapferScreen(ctx: Ctx): HTMLElement {
           newItem: () => ({ year: Number(f.get("list.0.year") ?? new Date().getFullYear() - 1) + 1, name: "" }),
           itemTitle: (a) => `${a.year ?? "?"} – ${a.name || a.note || ""}`,
           collapsed: true,
+          fixedOrder: true,
         },
       ),
     ],
@@ -35,7 +36,7 @@ export function timelineScreen(ctx: Ctx): HTMLElement {
     ctx,
     "timeline",
     "Zeitstrahl",
-    "Meilensteine auf der Seite Geschichte, unter dem Text. Reihenfolge wie hier (mit den Pfeilen sortieren). «Hervorheben» zeigt einen Eintrag als grosse Kennzahl, z. B. den Bierzins.",
+    "Meilensteine auf der Seite Geschichte, unter dem Text. Reihenfolge wie hier (zum Sortieren am Griff ⋮⋮ ziehen). «Hervorheben» zeigt einen Eintrag als grosse Kennzahl, z. B. den Bierzins.",
     (f) => [
       list<{ year: string; text: string; highlight?: boolean }>(
         f,

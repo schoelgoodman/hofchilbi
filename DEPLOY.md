@@ -48,8 +48,9 @@ Redaktion address. No Neo setting needed, the address comes from the service set
 
 Redaktion health (after content is installed):
 - `docker logs hofchilbi-redaktion --tail 20` → `editor: listening on :4330`, no errors.
-- `git -C <appdata>/hofchilbi/content log --oneline | head -3` → at least «Stand beim Start der Redaktion».
-  This git is the only version history of the content. Never delete `content/.git`.
+- `git -C <appdata>/hofchilbi/content log --oneline | head -3` → at least one entry.
+  This git is the only version history of the content. Never delete `content/.git`. The editor removes
+  entries older than 3 months by itself (the newest 30 always stay), that is expected.
 
 Security headers:
 

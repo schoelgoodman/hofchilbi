@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -121,6 +122,71 @@ async function historyRepo(): Promise<{ dir: string; h: History }> {
   await h.init();
   return { dir, h };
 }
+
+test("history: prune removes old commits and their files for good, content and dates stay", async () => {
+  const { dir, h } = await historyRepo();
+  const git = (args: string[], date?: string) =>
+    execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, ...(date ? { GIT_COMMITTER_DATE: date, GIT_AUTHOR_DATE: date } : {}) },
+    }).trim();
+  const save = async (name: string, data: string, message: string, daysAgo: number) => {
+    await writeFile(path.join(dir, name), data);
+    git(["add", "-A"]);
+    git(["commit", "-q", "-m", message], new Date(Date.now() - daysAgo * 86_400_000).toISOString());
+  };
+  await save("old.bin", "only in old history", "uralt", 400);
+  const oldBlob = git(["rev-parse", "HEAD:old.bin"]);
+  await rm(path.join(dir, "old.bin"));
+  await save("site.yaml", "a: 1\n", "alt", 200);
+  await save("site.yaml", "a: 2\n", "am Schnitt", 100);
+  await save("site.yaml", "a: 3\n", "neu 1", 10);
+  await save("site.yaml", "a: 4\n", "neu 2", 1);
+  const newDate = git(["log", "-1", "--format=%cI", "HEAD~1"]);
+
+  assert.equal(await h.prune(90, 2), 3);
+  assert.deepEqual((await h.log()).map((e) => e.message), ["neu 2", "neu 1", "Ältester Stand im Verlauf"]);
+  assert.equal(await readFile(path.join(dir, "site.yaml"), "utf8"), "a: 4\n");
+  assert.equal(git(["status", "--porcelain"]), "");
+  assert.equal(git(["show", "HEAD~2:site.yaml"]), "a: 2");
+  assert.equal(git(["log", "-1", "--format=%cI", "HEAD~1"]), newDate);
+  assert.throws(() => git(["cat-file", "-e", oldBlob]));
+
+  assert.equal(await h.prune(90, 2), 0);
+  await h.restoreFile((await h.log())[1]!.hash, "site.yaml", "Allgemein");
+  assert.equal(await readFile(path.join(dir, "site.yaml"), "utf8"), "a: 3\n");
+});
+
+test("history: prune keeps the newest commits of a quiet site, however old", async () => {
+  const { dir, h } = await historyRepo();
+  for (const [i, n] of ["1", "2", "3"].entries()) {
+    await writeFile(path.join(dir, "site.yaml"), `a: ${n}\n`);
+    await h.commit(`s${i}`);
+  }
+  const before = (await h.log()).map((e) => e.hash);
+  assert.equal(await h.prune(0, 10), 0);
+  assert.deepEqual((await h.log()).map((e) => e.hash), before);
+  assert.equal(await h.prune(0, 2), 1);
+  assert.deepEqual((await h.log()).map((e) => e.message), ["s2", "s1", "Ältester Stand im Verlauf"]);
+});
+
+test("news: a copy is a new draft of today with everything else of the original", async () => {
+  const s = new Store(await tmp());
+  const slug = await s.createNews("Fest");
+  const n = (await s.listNews()).find((x) => x.slug === slug)!;
+  const v = await s.putNews(slug, { title: "Fest", date: "2020-01-02", draft: false, ctaTarget: "helfer" }, "Text\n", n.version);
+  assert.ok(v);
+  const { slug: other, title } = await s.copyNews(slug);
+  assert.equal(title, "Fest (Kopie)");
+  assert.notEqual(other, slug);
+  const copy = (await s.listNews()).find((x) => x.slug === other)!;
+  assert.equal(copy.meta.draft, true);
+  assert.equal(copy.meta.date, new Date().toISOString().slice(0, 10));
+  assert.equal((copy.meta as { ctaTarget?: string }).ctaTarget, "helfer");
+  assert.equal(copy.body.trim(), "Text");
+  await assert.rejects(s.copyNews("gibt-es-nicht"), (e: HttpError) => e.status === 404);
+});
 
 test("history: uploads are not listed, entries know their files", async () => {
   const { dir, h } = await historyRepo();

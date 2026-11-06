@@ -26,6 +26,10 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
 - Phones (`isPhone()`, 860 px, same as the `@media` block at the end of `editor.css`): the first screen is
   News instead of Allgemein, list actions sit inside the open item, the save bar only shows with
   unsaved changes, Milkdown uses its top bar instead of hover handle and selection bubble.
+- Lists (`list()` in `src/editor/form.ts`): drag handle (`dragSort.ts`, pointer events so phones work),
+  arrows for keyboards, copy. `fixedOrder` where the site sorts by itself (Anzapfer by year).
+- Verlauf: `History.prune` (`git.ts`) permanently rewrites the content git at start and daily: 90 days,
+  newest 30 commits always stay. It also runs on `dev-content` with `npm run dev`.
 - Editor writes require header `X-Hofchilbi-Editor: 1` and a matching Origin (`src/server/access.ts`).
 
 ## Security model (Phase 4)

@@ -664,6 +664,39 @@ select {
   display: flex;
   gap: 0.3rem;
 }
+/* The whole handle: the page must not scroll or select text when a finger starts here. */
+.item__grip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 2.2rem;
+  min-height: 2.2rem;
+  letter-spacing: -0.15em;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.list--dragging {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.list--dragging .item__body {
+  display: none;
+}
+.item--dragging {
+  position: relative;
+  z-index: 5;
+  border-color: #000;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 22%);
+}
+.item--dragging .item__grip {
+  cursor: grabbing;
+}
 .item__body {
   padding: 0.8rem 1rem 0.4rem;
   border-top: 1px solid var(--line);
@@ -1197,8 +1230,13 @@ dialog.confirm::backdrop {
     padding: 0.8rem 0 0.5rem;
     border-top: 1px solid var(--line);
   }
-  .item__foot .btn {
+  .item__foot .btn--ghost {
     margin-left: auto;
+  }
+  .item__grip {
+    width: 3rem;
+    margin: -0.5rem -0.8rem -0.5rem 0;
+    font-size: 1.2rem;
   }
 
   /* Text editor: formatting bar instead of hover handle and selection bubble */

@@ -202,12 +202,24 @@ export class Store {
 
   async createNews(title: unknown): Promise<string> {
     if (typeof title !== "string" || !title.trim()) throw new HttpError(422, "Titel fehlt.", { title: "Titel fehlt" });
+    return this.writeNewNews({ title: title.trim() }, "");
+  }
+
+  /** A new draft dated today with everything else of the original. Returns its slug and title. */
+  async copyNews(slug: string): Promise<{ slug: string; title: string }> {
+    const text = await this.read(this.newsRel(slug));
+    if (text === null) throw new HttpError(404, "Diese News gibt es nicht mehr.");
+    const { data, body } = parseFrontmatter(text);
+    const title = `${String((data as { title?: string }).title ?? slug)} (Kopie)`;
+    return { slug: await this.writeNewNews({ ...(data as object), title }, body), title };
+  }
+
+  private async writeNewNews(meta: { title: string }, body: string): Promise<string> {
     const date = new Date().toISOString().slice(0, 10);
-    const base = `${date}-${slugify(title)}`.slice(0, 70).replace(/-+$/, "");
+    const base = `${date}-${slugify(meta.title)}`.slice(0, 70).replace(/-+$/, "");
     let slug = base;
     for (let i = 2; (await this.read(this.newsRel(slug))) !== null; i++) slug = `${base}-${i}`;
-    const text = stringifyFrontmatter({ title: title.trim(), date, draft: true }, "");
-    await atomicWrite(path.join(this.dir, this.newsRel(slug)), text);
+    await atomicWrite(path.join(this.dir, this.newsRel(slug)), stringifyFrontmatter({ ...meta, date, draft: true }, body));
     return slug;
   }
 

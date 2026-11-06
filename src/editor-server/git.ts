@@ -8,6 +8,10 @@ const run = promisify(execFile);
 /** Uploads get a commit of their own, but change nothing until a save uses them: not shown in the history. */
 const UPLOAD_PREFIX = "Datei hochgeladen: ";
 
+/** How long the Verlauf goes back. The site is quiet most of the year: the newest commits always stay. */
+const KEEP_DAYS = 90;
+const KEEP_AT_LEAST = 30;
+
 export interface LogEntry {
   hash: string;
   date: string;
@@ -35,11 +39,11 @@ export class History {
     this.dir = dir;
   }
 
-  private git(args: string[]): Promise<string> {
+  private git(args: string[], env: Record<string, string> = {}): Promise<string> {
     return run(
       "git",
       ["-c", "safe.directory=*", "-c", "user.name=Hofchilbi Redaktion", "-c", "user.email=redaktion@hofchilbi.local", "-c", "commit.gpgsign=false", ...args],
-      { cwd: this.dir, maxBuffer: 10 * 1024 * 1024, env: { PATH: process.env.PATH ?? "/bin", HOME: process.env.HOME ?? "/tmp" } },
+      { cwd: this.dir, maxBuffer: 10 * 1024 * 1024, env: { PATH: process.env.PATH ?? "/bin", HOME: process.env.HOME ?? "/tmp", ...env } },
     ).then((r) => r.stdout);
   }
 
@@ -78,6 +82,39 @@ export class History {
       const pending = await this.git(["status", "--porcelain"]);
       if (pending.trim()) await this.git(["commit", "-q", "-m", message]);
       return (await this.git(["rev-parse", "HEAD"])).trim();
+    });
+  }
+
+  /**
+   * Deletes the history older than `keepDays` for good, including files that only old commits still
+   * hold. The newest commit before the cut becomes the new first one, the later ones are written
+   * again on top of it with their dates. Their trees stay the same, so no content changes.
+   * Returns the number of commits removed.
+   */
+  prune(keepDays = KEEP_DAYS, keepAtLeast = KEEP_AT_LEAST): Promise<number> {
+    return this.serial(async () => {
+      const cut = Date.now() - keepDays * 24 * 60 * 60 * 1000;
+      const out = await this.git(["log", "--reverse", "--first-parent", "--format=%H%x09%T%x09%aI%x09%cI%x09%s"]);
+      const commits = out.split("\n").filter(Boolean).map((l) => {
+        const [hash, tree, authored, committed, ...subject] = l.split("\t");
+        return { hash: hash!, tree: tree!, authored: authored!, committed: committed!, subject: subject.join("\t") };
+      });
+      const lastOld = commits.findLastIndex((c) => Date.parse(c.committed) < cut);
+      const firstKept = Math.min(lastOld + 1, commits.length - keepAtLeast);
+      if (firstKept < 2) return 0; // Index 0 is what the new first commit would be anyway.
+
+      const base = commits[firstKept - 1]!;
+      let parent = "";
+      for (const c of [{ ...base, subject: "Ältester Stand im Verlauf" }, ...commits.slice(firstKept)]) {
+        const args = ["commit-tree", c.tree, "-m", c.subject, ...(parent ? ["-p", parent] : [])];
+        parent = (await this.git(args, { GIT_AUTHOR_DATE: c.authored, GIT_COMMITTER_DATE: c.committed })).trim();
+      }
+      // Moves in one step and only from the state read above; a failure before this changes nothing.
+      await this.git(["update-ref", "HEAD", parent, commits.at(-1)!.hash]);
+      await this.git(["reflog", "expire", "--expire=now", "--all"]);
+      // Within the container's memory limit, also with many large images.
+      await this.git(["-c", "pack.threads=1", "-c", "pack.windowMemory=128m", "gc", "-q", "--prune=now"]);
+      return firstKept - 1;
     });
   }
 

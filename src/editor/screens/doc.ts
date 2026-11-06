@@ -8,6 +8,7 @@ export interface Ctx {
   reload(): Promise<void>;
   /** Registers whether the screen has unsaved changes (navigation guard). */
   guard(isDirty: () => boolean): void;
+  isDirty(): boolean;
 }
 
 type DocName = keyof State["docs"];

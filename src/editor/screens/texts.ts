@@ -198,6 +198,29 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
     },
     "Löschen",
   );
+  const copy = h(
+    "button",
+    {
+      type: "button",
+      class: "btn",
+      onclick: async () => {
+        // Reloading would throw away what was typed; the copy is made of the saved news.
+        if (ctx.isDirty()) {
+          toast("Bitte zuerst speichern, dann kopieren.", "error");
+          return;
+        }
+        try {
+          const { slug } = await api.copyNews(n.slug);
+          await ctx.reload();
+          location.hash = `#/news/${slug}`;
+          toast("Kopie erstellt. Sie ist ein Entwurf und erst sichtbar, wenn «Entwurf» ausgeschaltet ist.");
+        } catch (err) {
+          handleSaveError(err);
+        }
+      },
+    },
+    "Kopieren",
+  );
   return h(
     "div",
     { class: "editor" },
@@ -214,7 +237,7 @@ function newsEditor(ctx: Ctx, n: NewsEntry): HTMLElement {
         toast(m.draft ? "Gespeichert (Entwurf, auf der Website nicht sichtbar)." : "Gespeichert. Die Website ist in wenigen Sekunden aktualisiert.");
         announceSaved();
       },
-      del,
+      h("div", { class: "row" }, copy, del),
       undefined,
       (f) => [
         text(f, "meta.date", "Datum", { type: "date" }),

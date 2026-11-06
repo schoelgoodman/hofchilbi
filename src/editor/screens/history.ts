@@ -116,7 +116,7 @@ export function historyScreen(ctx: Ctx): HTMLElement {
     "div",
     { class: "screen" },
     h("h1", {}, "Verlauf"),
-    h("p", { class: "intro" }, "Jede Speicherung ist hier festgehalten. Ein einzelner Bereich oder die ganze Website lässt sich zurückholen, dabei geht nichts verloren."),
+    h("p", { class: "intro" }, "Jede Speicherung bleibt hier drei Monate. Ältere werden automatisch gelöscht, die letzten paar bleiben aber immer. Ein einzelner Bereich oder die ganze Website lässt sich zurückholen."),
     deletedEl,
     h("section", { class: "history-block" }, h("h2", {}, "Speicherungen"), listEl, moreEl),
   );

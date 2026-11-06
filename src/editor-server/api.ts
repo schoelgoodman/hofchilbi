@@ -84,6 +84,9 @@ export class EditorApi {
     await mkdir(this.store.dir, { recursive: true });
     await this.history.init();
     this.immich.start();
+    const prune = () => this.history.prune().catch((err) => console.error("Verlauf: Aufräumen fehlgeschlagen", err));
+    void prune();
+    setInterval(prune, 24 * 60 * 60 * 1000).unref();
   }
 
   private uploads: Promise<unknown> = Promise.resolve();
@@ -133,6 +136,13 @@ export class EditorApi {
         await this.saved(`News angelegt: ${String(body.title).slice(0, 80)}`);
         return json(res, 201, { slug });
       }
+      r = /^\/api\/news\/([a-z0-9-]+)\/copy$/.exec(p);
+      if (r && m === "POST") {
+        const { slug, title } = await this.store.copyNews(r[1]!);
+        await this.saved(`News kopiert: ${title.slice(0, 80)}`);
+        return json(res, 201, { slug });
+      }
+
       r = /^\/api\/news\/([a-z0-9-]+)$/.exec(p);
       if (r && m === "PUT") {
         const body = await readJson(req);

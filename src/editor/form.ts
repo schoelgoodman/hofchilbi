@@ -1,5 +1,6 @@
 import { ApiError, api, thumb } from "./api.ts";
 import { clone, h, isPhone, toast } from "./dom.ts";
+import { moveItem, startDrag } from "./dragSort.ts";
 import { pickMedia } from "./mediaBrowser.ts";
 
 /**
@@ -300,24 +301,42 @@ export interface ListOpts<I> {
   extra?: HTMLElement[];
   /** Start collapsed (long lists). */
   collapsed?: boolean;
+  /** The website sorts these itself (e.g. Anzapfer by year): no way to move items. */
+  fixedOrder?: boolean;
 }
 
 export function list<I>(form: Form, path: string, label: string, render: (itemPath: string, item: I, i: number) => HTMLElement[], o: ListOpts<I>): HTMLElement {
   const items = (form.get(path) as I[] | undefined) ?? [];
   const setItems = (next: I[]) => form.set(path, next, true);
   const itemEl = (i: number) => document.querySelector(`.item[data-item="${path}.${i}"]`);
+  // The open state moves along with the items.
+  const setOpenStates = (states: boolean[]) => {
+    forgetOpen(path);
+    states.forEach((open, j) => openItems.set(`${path}.${j}`, open));
+  };
+  const openStates = () => items.map((_, j) => openItems.get(`${path}.${j}`) ?? isOpenByDefault());
+  const moveTo = (from: number, to: number) => {
+    setOpenStates(moveItem(openStates(), from, to));
+    setItems(moveItem(items, from, to));
+  };
   const move = (i: number, d: number) => {
-    const next = [...items];
-    const [x] = next.splice(i, 1);
-    next.splice(i + d, 0, x!);
-    // The open state moves along with the item.
-    const [from, to] = [`${path}.${i}`, `${path}.${i + d}`];
-    const [openFrom, openTo] = [openItems.get(from), openItems.get(to)];
-    openItems.set(to, openFrom ?? isOpenByDefault());
-    openItems.set(from, openTo ?? isOpenByDefault());
-    setItems(next);
+    moveTo(i, i + d);
     // Phones: the arrows sit inside the item, keep them under the finger.
     if (isPhone()) itemEl(i + d)?.querySelector(".item__foot")?.scrollIntoView({ block: "nearest" });
+  };
+  const drop = (from: number, to: number) => {
+    moveTo(from, to);
+    itemEl(to)?.querySelector("summary")?.scrollIntoView({ block: "nearest" });
+  };
+  const copy = (item: I, i: number) => {
+    const states = openStates();
+    states.splice(i + 1, 0, true);
+    setOpenStates(states);
+    setItems([...items.slice(0, i + 1), clone(item), ...items.slice(i + 1)]);
+    const el = itemEl(i + 1);
+    el?.scrollIntoView({ block: "nearest" });
+    if (!isPhone()) el?.querySelector<HTMLElement>("input, textarea")?.focus();
+    toast(`Kopie von «${o.itemTitle(item, i) || "Eintrag"}» eingefügt. Endgültig erst mit «Speichern».`);
   };
   const remove = (item: I, i: number) => {
     forgetOpen(path);
@@ -334,6 +353,8 @@ export function list<I>(form: Form, path: string, label: string, render: (itemPa
   };
   // Phones start collapsed: a row of titles is worth more than a few open forms and a long scroll.
   const isOpenByDefault = () => !o.collapsed && !isPhone() && items.length <= 6;
+  const arrows = !o.fixedOrder;
+  const sortable = arrows && items.length > 1;
   const rows = items.map((item, i) => {
     const err = Object.keys(form.errors).some((k) => k.startsWith(`${path}.${i}.`) || k === `${path}.${i}`);
     const details = h(
@@ -343,11 +364,26 @@ export function list<I>(form: Form, path: string, label: string, render: (itemPa
         "summary",
         {},
         h("span", { class: "item__title" }, o.itemTitle(item, i) || "(neu)"),
+        // Not for keyboards and screen readers: they have the arrows.
+        sortable
+          ? h(
+              "span",
+              {
+                class: "item__grip",
+                title: "Ziehen zum Verschieben",
+                "aria-hidden": "true",
+                onpointerdown: (e: Event) => startDrag(e as PointerEvent, drop),
+                onclick: (e: Event) => e.preventDefault(),
+              },
+              "⋮⋮",
+            )
+          : null,
         h(
           "span",
           { class: "item__tools" },
-          h("button", { type: "button", class: "icon", title: "Nach oben", "aria-label": "Nach oben", disabled: i === 0, onclick: (e: Event) => (e.preventDefault(), move(i, -1)) }, "↑"),
-          h("button", { type: "button", class: "icon", title: "Nach unten", "aria-label": "Nach unten", disabled: i === items.length - 1, onclick: (e: Event) => (e.preventDefault(), move(i, 1)) }, "↓"),
+          arrows ? h("button", { type: "button", class: "icon", title: "Nach oben", "aria-label": "Nach oben", disabled: i === 0, onclick: (e: Event) => (e.preventDefault(), move(i, -1)) }, "↑") : null,
+          arrows ? h("button", { type: "button", class: "icon", title: "Nach unten", "aria-label": "Nach unten", disabled: i === items.length - 1, onclick: (e: Event) => (e.preventDefault(), move(i, 1)) }, "↓") : null,
+          h("button", { type: "button", class: "icon", title: "Kopieren", "aria-label": "Kopieren", onclick: (e: Event) => (e.preventDefault(), copy(item, i)) }, "⧉"),
           h("button", { type: "button", class: "icon icon--danger", title: "Löschen", "aria-label": "Löschen", onclick: (e: Event) => (e.preventDefault(), remove(item, i)) }, "✕"),
         ),
       ),
@@ -359,8 +395,9 @@ export function list<I>(form: Form, path: string, label: string, render: (itemPa
         h(
           "div",
           { class: "item__foot" },
-          h("button", { type: "button", class: "icon", "aria-label": "Nach oben", disabled: i === 0, onclick: () => move(i, -1) }, "↑"),
-          h("button", { type: "button", class: "icon", "aria-label": "Nach unten", disabled: i === items.length - 1, onclick: () => move(i, 1) }, "↓"),
+          arrows ? h("button", { type: "button", class: "icon", "aria-label": "Nach oben", disabled: i === 0, onclick: () => move(i, -1) }, "↑") : null,
+          arrows ? h("button", { type: "button", class: "icon", "aria-label": "Nach unten", disabled: i === items.length - 1, onclick: () => move(i, 1) }, "↓") : null,
+          h("button", { type: "button", class: "btn btn--ghost", onclick: () => copy(item, i) }, "Kopieren"),
           h("button", { type: "button", class: "btn btn--danger-ghost", onclick: () => remove(item, i) }, "Löschen"),
         ),
       ),
