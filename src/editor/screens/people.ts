@@ -15,7 +15,7 @@ export function anzapferScreen(ctx: Ctx): HTMLElement {
         (p) => [
           text(f, `${p}.year`, "Jahr", { type: "number" }),
           text(f, `${p}.name`, "Name(n)"),
-          text(f, `${p}.note`, "Hinweis statt Name (optional)", { placeholder: "z. B. Keine Hofchilbi (Corona)", hint: "Nur für Jahre ohne Anzapfer. Gleiche Hinweise in Folgejahren werden zusammengefasst (2020–2021)." }),
+          text(f, `${p}.note`, "Hinweis statt Name (optional)", { placeholder: "z. B. Keine Hofchilbi (Corona)", hint: "Nur für Jahre ohne Anzapfer." }),
           image(f, `${p}.photo`, "Foto (optional)", { dir: "anzapfer", optional: true }),
         ],
         {

@@ -1,5 +1,5 @@
 import { eventLabel, eventYear } from "../content/load.ts";
-import type { Anzapfer, Sponsor } from "../content/schema.ts";
+import type { Sponsor } from "../content/schema.ts";
 import { html, type Raw } from "./html.ts";
 import { hero, heroPreload, linkAttrs, type Ctx, type PageDef } from "./layout.ts";
 import { markdown, markdownText } from "./markdown.ts";
@@ -201,20 +201,6 @@ export async function startPage(ctx: Ctx): Promise<PageDef> {
 }
 
 // ---------------------------------------------------------------- Geschichte
-/** Anzapfer list rows: consecutive years with the same note are merged ("2020–2021"). */
-export function anzapferRows(list: Anzapfer["list"]): { from: number; to: number; name?: string; note?: string; photo?: string }[] {
-  const rows: { from: number; to: number; name?: string; note?: string; photo?: string }[] = [];
-  for (const a of [...list].sort((x, y) => y.year - x.year)) {
-    const prev = rows.at(-1);
-    if (a.note && !a.name && prev?.note && !prev.name && prev.note === a.note && prev.from === a.year + 1) {
-      prev.from = a.year;
-      continue;
-    }
-    rows.push({ from: a.year, to: a.year, name: a.name, note: a.name ? undefined : a.note, photo: a.photo });
-  }
-  return rows;
-}
-
 export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
   const { site, pages, anzapfer, timeline } = ctx.content;
   const page = pages.geschichte ?? { title: "Geschichte", body: "" };
@@ -240,10 +226,10 @@ export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
         </div>
       </div>`
     : "";
-  const rows = anzapferRows(anzapfer.list.filter((a) => a !== current));
+  const rows = anzapfer.list.filter((a) => a !== current).sort((x, y) => y.year - x.year);
   const decades = new Map<number, typeof rows>();
   for (const r of rows) {
-    const d = Math.floor(r.from / 10) * 10;
+    const d = Math.floor(r.year / 10) * 10;
     decades.set(d, [...(decades.get(d) ?? []), r]);
   }
   const decadePanels = await Promise.all(
@@ -251,10 +237,9 @@ export async function geschichtePage(ctx: Ctx): Promise<PageDef> {
       const lis = await Promise.all(
         items.map(async (r) => {
           const photo = r.photo ? await ctx.images.img(r.photo, { alt: "", sizes: "44px", widths: [88], aspect: 1, cls: "anz-list__photo" }) : "";
-          const years = r.from === r.to ? String(r.from) : `${r.from}–${String(r.to).slice(-2)}`;
           return r.name
-            ? html`<li><span class="anz-list__year">${years}</span><span class="anz-list__name">${r.name}</span>${photo}</li>`
-            : html`<li class="anz-list__gap"><span class="anz-list__year">${years}</span><span class="anz-list__name">${r.note}</span></li>`;
+            ? html`<li><span class="anz-list__year">${r.year}</span><span class="anz-list__name">${r.name}</span>${photo}</li>`
+            : html`<li class="anz-list__gap"><span class="anz-list__year">${r.year}</span><span class="anz-list__name">${r.note}</span></li>`;
         }),
       );
       return html`<details class="anz-decade"${index === 0 ? html` open` : ""}><summary><h3 class="tier">${decade}er</h3></summary><ul class="anz-list">${lis}</ul></details>`;

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { anzapferRows, initials, logoSize, newsLayout, splitGoenner } from "./pages.ts";
+import { initials, logoSize, newsLayout, splitGoenner } from "./pages.ts";
 
 test("newsLayout: two news are equals, otherwise the newest is big", () => {
   assert.deepEqual(newsLayout([]), { big: undefined, cards: [], list: "0" });
@@ -26,23 +26,6 @@ test("splitGoenner: place after the last comma", () => {
     place: "Henau",
   });
   assert.deepEqual(splitGoenner("Anonym"), { name: "Anonym" });
-});
-
-test("anzapferRows: same note in consecutive years is merged", () => {
-  const rows = anzapferRows([
-    { year: 2022, name: "A" },
-    { year: 2021, note: "Keine Hofchilbi (Corona)" },
-    { year: 2020, note: "Keine Hofchilbi (Corona)" },
-    { year: 2019, name: "B" },
-  ]);
-  assert.deepEqual(
-    rows.map((r) => [r.from, r.to, r.name ?? r.note]),
-    [
-      [2022, 2022, "A"],
-      [2020, 2021, "Keine Hofchilbi (Corona)"],
-      [2019, 2019, "B"],
-    ],
-  );
 });
 
 test("initials: first letters of the first two words", () => {
