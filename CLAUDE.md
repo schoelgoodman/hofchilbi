@@ -26,6 +26,8 @@ github.com/schoelgoodman/advocat-heft: same architecture, with its known weak sp
 - Phones (`isPhone()`, 860 px, same as the `@media` block at the end of `editor.css`): the first screen is
   News instead of Allgemein, list actions sit inside the open item, the save bar only shows with
   unsaved changes, Milkdown uses its top bar instead of hover handle and selection bubble.
+- Fonts (`--font`, `--font-condensed` in `site.css`): Apple devices use their built-in Helvetica Neue (no licence for hosting it, never host it);
+  elsewhere self-hosted Inter, and Archivo for condensed text since Inter has no condensed cut. The Redaktion stays on Archivo.
 - News on Start (`newsLayout` in `src/render/pages.ts`): 2 news are equal cards, otherwise newest big +
   cards filling their rows. Images in fixed frames: 4:3, portrait photos 4:5 only in the big news;
   transparent images and SVGs (logos) are shown whole in the frame instead of cropped.

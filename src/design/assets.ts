@@ -11,6 +11,7 @@ import { repoRoot } from "../paths.ts";
  */
 const designDir = path.dirname(fileURLToPath(import.meta.url));
 const fontDir = path.join(repoRoot, "node_modules/@fontsource-variable/archivo/files");
+const interDir = path.join(repoRoot, "node_modules/@fontsource-variable/inter/files");
 
 export const SVGS = [
   "skyline-white",
@@ -31,7 +32,6 @@ export type SvgName = (typeof SVGS)[number];
 export interface Assets {
   css: string;
   js: string;
-  fontLatin: string;
   svg: Record<SvgName, string>;
   favicon: string;
 }
@@ -54,12 +54,17 @@ export async function writeAssets(outDir: string): Promise<Assets> {
   const fontLatin = await put("archivo-latin.woff2", await readFile(path.join(fontDir, "archivo-latin-standard-normal.woff2")));
   const fontLatinExt = await put("archivo-latin-ext.woff2", await readFile(path.join(fontDir, "archivo-latin-ext-standard-normal.woff2")));
 
+  const interLatin = await put("inter-latin.woff2", await readFile(path.join(interDir, "inter-latin-wght-normal.woff2")));
+  const interLatinExt = await put("inter-latin-ext.woff2", await readFile(path.join(interDir, "inter-latin-ext-wght-normal.woff2")));
+
   const svg = {} as Record<SvgName, string>;
   for (const name of SVGS) svg[name] = await put(`${name}.svg`, await readFile(path.join(designDir, "assets", `${name}.svg`)));
 
   const css = minifyCss(await readFile(path.join(designDir, "site.css"), "utf8"))
     .replaceAll("__FONT_LATIN__", fontLatin)
     .replaceAll("__FONT_LATIN_EXT__", fontLatinExt)
+    .replaceAll("__INTER_LATIN__", interLatin)
+    .replaceAll("__INTER_LATIN_EXT__", interLatinExt)
     .replaceAll("__SKYLINE_BLACK__", svg["skyline-black"]);
   const js = await readFile(path.join(designDir, "site.js"), "utf8");
   const favicon = await readFile(path.join(designDir, "assets", "favicon.svg"));
@@ -67,7 +72,7 @@ export async function writeAssets(outDir: string): Promise<Assets> {
   // Home-screen icon for iOS/Android (they don't use SVG favicons). Opaque: iOS would fill transparency itself.
   await sharp(favicon).resize(148, 148).extend({ top: 16, bottom: 16, left: 16, right: 16, background: "#000" }).flatten({ background: "#000" }).png().toFile(path.join(outDir, "apple-touch-icon.png"));
 
-  return { css: await put("site.css", css), js: await put("site.js", js), fontLatin, svg, favicon: "/favicon.svg" };
+  return { css: await put("site.css", css), js: await put("site.js", js), svg, favicon: "/favicon.svg" };
 }
 
 /** Conservative CSS minifier: comments and whitespace only (no rewriting of values). */

@@ -26,7 +26,7 @@
         ];
       };
       # After every change to package-lock.json: nix run nixpkgs#prefetch-npm-deps -- package-lock.json
-      npmDepsHash = "sha256-pcBniFjVSqAzCQr3cQXHnZhM6yc4FC6XZmFmEODlFrs=";
+      npmDepsHash = "sha256-Eq/uHSqt+HewNftOKQcTQPpVmTtR7sAcCI1NRzRJq2k=";
       npmBuildScript = "build";
       installPhase = ''
         runHook preInstall

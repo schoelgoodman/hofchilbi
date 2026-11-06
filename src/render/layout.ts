@@ -200,7 +200,6 @@ export async function layout(ctx: Ctx, page: PageDef): Promise<string> {
 ${page.noindex ? html`<meta name="robots" content="noindex">` : html`<link rel="canonical" href="${url}">`}
 ${page.preload ? html`<link rel="preload" as="image" imagesrcset="${page.preload.srcset}" imagesizes="${page.preload.sizes}" fetchpriority="high">` : ""}
 <link rel="preload" href="${ctx.assets.svg["skyline-white"]}" as="image" type="image/svg+xml" fetchpriority="high">
-<link rel="preload" href="${ctx.assets.fontLatin}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="${ctx.assets.css}">
 <link rel="icon" href="${ctx.assets.favicon}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
