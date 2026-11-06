@@ -233,6 +233,16 @@ test("restoreFile: brings back an upload deleted on its own, also a large one", 
   assert.equal((await stat(path.join(dir, "media/gross.pdf"))).size, 11 * 1024 * 1024);
 });
 
+test("putNews: validation errors name the field of the editor form (meta.*)", async () => {
+  const { s } = await mediaStore();
+  const slug = await s.createNews("Fest");
+  const [n] = await s.listNews();
+  await assert.rejects(
+    s.putNews(slug, { title: "Fest", date: "2027-01-02", ctaLabel: "Hier" }, "", n!.version),
+    (e: HttpError) => e.status === 422 && (e.details as Record<string, string>)["meta.ctaUrl"] === "Wohin soll der Button führen?",
+  );
+});
+
 test("putNews: a news button may lead to an uploaded PDF", async () => {
   const { s } = await mediaStore();
   const slug = await s.createNews("Fest");

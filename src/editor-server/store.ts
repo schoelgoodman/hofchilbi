@@ -79,15 +79,16 @@ export function version(bytes: string | Buffer | null): string {
 }
 
 /** Zod issues → { "path.to.field": "message" } for the form. */
-function issues(err: z.ZodError): Record<string, string> {
+function issues(err: z.ZodError, prefix: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const i of err.issues) out[i.path.join(".") || "_"] ??= i.message;
+  for (const i of err.issues) out[[prefix, ...i.path].filter((x) => x !== "").join(".") || "_"] ??= i.message;
   return out;
 }
 
-export function validate<S extends z.ZodType>(schema: S, data: unknown): z.infer<S> {
+/** `prefix`: where the data sits in the editor's form, so errors land on the right field. */
+export function validate<S extends z.ZodType>(schema: S, data: unknown, prefix = ""): z.infer<S> {
   const r = schema.safeParse(data);
-  if (!r.success) throw new HttpError(422, "Bitte die markierten Felder prüfen.", issues(r.error));
+  if (!r.success) throw new HttpError(422, "Bitte die markierten Felder prüfen.", issues(r.error, prefix));
   return r.data;
 }
 
@@ -190,7 +191,7 @@ export class Store {
 
   async putNews(slug: string, meta: unknown, body: unknown, base: unknown): Promise<string> {
     const rel = this.newsRel(slug);
-    const clean = validate(NewsFrontmatter, meta);
+    const clean = validate(NewsFrontmatter, meta, "meta");
     await this.checkRefs(clean, "meta");
     if (typeof body !== "string" || body.length > 50_000) throw new HttpError(422, "Text fehlt oder ist zu lang.");
     await this.checkBase(rel, base);
@@ -232,7 +233,7 @@ export class Store {
 
   async putPage(name: string, meta: unknown, body: unknown, base: unknown): Promise<string> {
     const rel = this.pageRel(name);
-    const clean = validate(PageFrontmatter, meta);
+    const clean = validate(PageFrontmatter, meta, "meta");
     if (typeof body !== "string" || body.length > 100_000) throw new HttpError(422, "Text fehlt oder ist zu lang.");
     await this.checkBase(rel, base);
     const text = stringifyFrontmatter(clean, body);
