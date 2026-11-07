@@ -71,7 +71,7 @@ export async function hero(ctx: Ctx, o: { image: string; full?: boolean; inner: 
   return html`<div class="hero${o.full ? "" : " hero--sub"}">
   ${bg}
   <div class="hero__content">${o.inner}</div>
-  <img class="hero__skyline" src="${ctx.assets.svg["skyline-white"]}" alt="" width="1935" height="210" fetchpriority="high">
+  <img class="hero__skyline" src="${ctx.assets.svg["skyline-white"]}" alt="" width="1925" height="207" fetchpriority="high">
 </div>`;
 }
 

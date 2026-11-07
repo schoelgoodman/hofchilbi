@@ -294,7 +294,7 @@ async function start(): Promise<void> {
       { class: "side__body" },
       nav,
       h("div", { class: "side__foot" }, feedback, status),
-      h("img", { class: "side__skyline", src: skylineUrl, alt: "", width: 1935, height: 210 }),
+      h("img", { class: "side__skyline", src: skylineUrl, alt: "", width: 1925, height: 207 }),
     ),
   );
   app.replaceChildren(h("a", { class: "skip", href: "#main" }, "Zum Inhalt"), h("div", { class: "layout" }, side, main));
