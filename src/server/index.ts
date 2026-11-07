@@ -179,7 +179,20 @@ if (ROLE !== "editor") {
   if (!(await liveBuild(siteDir()))) await initial;
   serve("site", PORT);
   watchVersion();
+  watchNewYear();
   if (!PRODUCTION) watchForDev();
+}
+
+/** The footer shows the current year (TZ from the Nix module): rebuild once on 1 January. */
+function watchNewYear(): void {
+  let year = new Date().getFullYear();
+  setInterval(() => {
+    const now = new Date().getFullYear();
+    if (now === year) return;
+    year = now;
+    console.log(`Site: new year ${now}, rebuilding`);
+    buildSite().catch((err) => console.error("Site: rebuild failed:", err));
+  }, 60_000).unref();
 }
 
 /**
