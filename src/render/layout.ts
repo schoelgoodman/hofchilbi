@@ -100,7 +100,7 @@ async function siteHeader(ctx: Ctx, current: string): Promise<Raw> {
       ${await headerPartner(ctx)}
     </div>
     <nav class="header__nav" aria-label="Hauptnavigation"><ul>${navLinks(current)}</ul></nav>
-    <a class="button button--sm header__cta" href="${await ctx.images.href(site.links.helfer)}"${linkAttrs(site.links.helfer)}>Helfer werden</a>
+    <a class="header__ktv" href="${site.contact.ktv}" rel="noopener" target="_blank"><img src="${ctx.assets.svg["ktv-white"]}" alt="KTV Wil Handball" width="150" height="93"></a>
     <button class="menu-button" type="button" data-nav-open aria-controls="nav" aria-expanded="false" hidden><span></span><span class="visually-hidden">Navigation öffnen</span></button>
   </div>
 </header>`;

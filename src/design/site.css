@@ -431,8 +431,24 @@ h3 {
     transform: scaleX(1);
   }
 }
-.header__cta {
+/* Host club, desktop only: phones have it in the footer */
+.header__ktv {
   display: none;
+  line-height: 0;
+  transition: opacity 0.2s;
+}
+@media (hover: hover) {
+  .header__ktv:hover {
+    opacity: 0.8;
+  }
+}
+.header__ktv img {
+  width: auto;
+  height: clamp(36px, 3.6vw, 50px);
+  transition: height 0.35s ease;
+}
+.header.is-solid .header__ktv img {
+  height: 30px;
 }
 .header .menu-button {
   margin-left: auto;
@@ -441,8 +457,11 @@ h3 {
   .header__nav {
     display: block;
   }
-  .header__cta {
-    display: inline-flex;
+  .header__ktv {
+    display: block;
+  }
+  .header.is-solid .header__inner {
+    padding-right: 18px;
   }
   .header .menu-button {
     display: none;
