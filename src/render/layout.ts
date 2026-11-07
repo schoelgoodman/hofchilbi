@@ -1,4 +1,4 @@
-import { eventLabel, eventYear, type Content } from "../content/load.ts";
+import { eventLabel, type Content } from "../content/load.ts";
 import type { Assets } from "../design/assets.ts";
 import { html, jsonLd, type Raw } from "./html.ts";
 import type { Images } from "./images.ts";
@@ -147,7 +147,7 @@ function legalLink(ctx: Ctx, name: "impressum" | "datenschutz"): Raw | "" {
 
 async function footer(ctx: Ctx, current: string): Promise<Raw> {
   const { site } = ctx.content;
-  const year = eventYear(site);
+  const year = new Date().getFullYear();
   const label = site.event.label ?? eventLabel(site.event.days);
   return html`<footer class="footer">
   <div class="footer__inner">
