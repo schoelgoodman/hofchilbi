@@ -7,7 +7,7 @@ import { buildSite, siteUrl } from "../render/build.ts";
 import { liveBuild } from "../render/publish.ts";
 import { isForeignWrite, keyMatches } from "./access.ts";
 import { serveStatic } from "./static.ts";
-import { canonicalRedirect, withoutTrailingSlash } from "./urls.ts";
+import { canonicalRedirect, requestHost, withoutTrailingSlash } from "./urls.ts";
 import { EditorApi } from "../editor-server/api.ts";
 
 /**
@@ -60,11 +60,6 @@ async function redirects(): Promise<Record<string, string>> {
   return redirectCache.map;
 }
 
-/** Host as the visitor sent it (nginx forwards the original Host). */
-function requestHost(req: http.IncomingMessage): string {
-  return String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(",")[0]!.trim().toLowerCase();
-}
-
 function send(res: http.ServerResponse, status: number, body: string, type = "text/plain; charset=utf-8"): void {
   res.writeHead(status, { "Content-Type": type, "Cache-Control": "no-store" });
   res.end(body);
@@ -79,14 +74,15 @@ async function handleSite(req: http.IncomingMessage, res: http.ServerResponse): 
   if (p === "/health") return send(res, 200, "ok");
   if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Method Not Allowed");
   const url = new URL(req.url ?? "/", "http://x");
-  const toCanonical = canonicalRedirect(requestHost(req), siteUrl(), url.pathname + url.search);
+  const host = requestHost(req.headers);
+  const toCanonical = canonicalRedirect(host, siteUrl(), url.pathname + url.search);
   if (toCanonical) {
     res.writeHead(301, { Location: toCanonical });
     return void res.end();
   }
   // Only the canonical host may be indexed. On hofchilbi.<domain> (before and after go-live)
   // search engines are told to stay away, so Google never lists a duplicate of www.hofchilbi.ch.
-  const canonical = requestHost(req) === new URL(siteUrl()).host;
+  const canonical = host === new URL(siteUrl()).host;
   if (!canonical) res.setHeader("X-Robots-Tag", "noindex");
   if (p === "/robots.txt") {
     return send(

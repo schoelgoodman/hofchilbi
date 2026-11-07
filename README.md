@@ -66,6 +66,7 @@ there is no manual gallery editing: without a key the galleries stay as they are
 **Custom domain:** only at go-live, once DNS for `hofchilbi.ch` points to the server:
 `[services.hofchilbi] customDomains = ["www.hofchilbi.ch", "hofchilbi.ch"]`.
 Never add the editor subdomain as a custom domain.
+Follow the whole checklist in DEPLOY.md §5, not just this setting.
 
 ## Layout
 

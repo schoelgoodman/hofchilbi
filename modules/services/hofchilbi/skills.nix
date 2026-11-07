@@ -42,6 +42,7 @@
         - The image comes from Nix, not a registry. If `docker-hofchilbi` fails with a missing image, check `systemctl status hofchilbi-image` first
         - Never add `${redaktion.subdomain}.<domain>` as a custom domain
         - Add `www.hofchilbi.ch` / `hofchilbi.ch` as custom domains only after DNS points to this server, otherwise certificate requests fail
+        - Go-live follows the checklist in DEPLOY.md section 5, step by step. Never cancel or disconnect Webflow unless the operator says the gate in 5.7 is met
         - Never delete `content/.git` and never clear appdata without explicit confirmation from the operator
         - Do not hand-edit content while the Redaktion is in use
 

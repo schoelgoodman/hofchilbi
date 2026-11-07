@@ -46,6 +46,10 @@
 
         location / {
           include /config/nginx/proxy.conf;
+          # Custom domains reach this vhost through a second hop (Neo's site-confs), and proxy.conf
+          # overwrites X-Forwarded-Host. Without the first value the app would treat www.hofchilbi.ch
+          # as the test address and tell Google noindex. Empty on direct requests: then not sent.
+          proxy_set_header X-Original-Host $http_x_forwarded_host;
           include /config/nginx/resolver.conf;
           set $upstream_app hofchilbi;
           set $upstream_port 4330;

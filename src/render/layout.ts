@@ -18,6 +18,12 @@ export function linkAttrs(url: string): Raw | "" {
   return /^https?:/.test(url) || url.endsWith(".pdf") ? html` rel="noopener" target="_blank"` : "";
 }
 
+/**
+ * Same tag as on the old Webflow site, so the existing Search Console property stays verified after
+ * the switch and keeps its history. Google only reads it on the start page.
+ */
+const GOOGLE_VERIFICATION = "lkhYoLSz3EwS1dqqBf8zdLVwezAFSsrdnfqEMkAAgyM";
+
 export const NAV = [
   { href: "/", label: "Start" },
   { href: "/geschichte", label: "Geschichte" },
@@ -200,6 +206,7 @@ export async function layout(ctx: Ctx, page: PageDef): Promise<string> {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${fullTitle}</title>
 <meta name="description" content="${page.description}">
+${page.path === "/" ? html`<meta name="google-site-verification" content="${GOOGLE_VERIFICATION}">` : ""}
 ${page.noindex ? html`<meta name="robots" content="noindex">` : html`<link rel="canonical" href="${url}">`}
 ${page.preload ? html`<link rel="preload" as="image" imagesrcset="${page.preload.srcset}" imagesizes="${page.preload.sizes}" fetchpriority="high">` : ""}
 <link rel="preload" href="${ctx.assets.svg["skyline-white"]}" as="image" type="image/svg+xml" fetchpriority="high">
